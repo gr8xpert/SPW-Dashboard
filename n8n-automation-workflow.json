@@ -1,0 +1,125 @@
+{
+  "name": "SmartMailer – Automation Emails",
+  "nodes": [
+    {
+      "id": "b2c3d4e5-0001-0001-0001-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "smartmailer-automation",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "automation",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {}
+      }
+    },
+    {
+      "id": "b2c3d4e5-0002-0002-0002-000000000002",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "minutes",
+        "amount": "={{ $json.delay_minutes > 0 ? $json.delay_minutes : 0 }}"
+      }
+    },
+    {
+      "id": "b2c3d4e5-0003-0003-0003-000000000003",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "continueOnFail": true,
+      "parameters": {
+        "fromEmail": "={{ $('Webhook').first().json.smtp.from_email }}",
+        "toEmail": "={{ $('Webhook').first().json.email.to_email }}",
+        "subject": "={{ $('Webhook').first().json.email.subject }}",
+        "emailType": "html",
+        "message": "={{ $('Webhook').first().json.email.html }}",
+        "options": {
+          "fromName": "={{ $('Webhook').first().json.smtp.from_name }}"
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_YOUR_SMTP_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_YOUR_SMTP_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "id": "b2c3d4e5-0004-0004-0004-000000000004",
+      "name": "Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Webhook').first().json.callback_url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Callback-Secret",
+              "value": "={{ $('Webhook').first().json.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ send_id: 0, status: $json.error ? 'failed' : 'sent', automation_id: $('Webhook').first().json.automation_id, error: $json.error ? $json.error.message : null }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null
+}

@@ -49,6 +49,11 @@
             </form>
         @endif
 
+        {{-- Edit Widget Config --}}
+        <a href="{{ route('admin.widget-clients.edit', $client) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-pencil me-1"></i> Edit
+        </a>
+
         {{-- Impersonate --}}
         <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}">
             @csrf

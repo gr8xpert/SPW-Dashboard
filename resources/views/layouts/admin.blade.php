@@ -27,9 +27,6 @@
         <a href="{{ route('admin.plans.index') }}" class="nav-link {{ request()->routeIs('admin.plans.*') ? 'active' : '' }}">
             <i class="bi bi-tags"></i> Plans
         </a>
-        <a href="{{ route('admin.license-keys.index') }}" class="nav-link {{ request()->routeIs('admin.license-keys.*') ? 'active' : '' }}">
-            <i class="bi bi-key"></i> License Keys
-        </a>
 
         <p class="nav-section">Support</p>
         <a href="{{ route('admin.tickets.index') }}" class="nav-link {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}">
@@ -76,10 +73,12 @@
                 <i class="bi bi-person-circle me-1"></i> {{ auth()->user()->name }}
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ route('profile') }}"><i class="bi bi-person me-2"></i>Profile</a></li>
+                <li><hr class="dropdown-divider"></li>
                 <li>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
-                        <button class="dropdown-item text-danger">Logout</button>
+                        <button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Logout</button>
                     </form>
                 </li>
             </ul>

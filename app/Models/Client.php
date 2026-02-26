@@ -12,11 +12,11 @@ class Client extends Model
         'status', 'trial_ends_at', 'stripe_customer_id', 'stripe_subscription_id',
         'api_key', 'api_secret', 'timezone',
         // Widget fields
-        'domain', 'api_url', 'widget_features', 'ai_search_enabled',
+        'domain', 'api_url', 'site_name', 'widget_features', 'widget_config', 'ai_search_enabled',
         'openrouter_api_key', 'default_language', 'owner_email',
         'widget_enabled', 'admin_override', 'is_internal', 'billing_source',
         // Paddle billing
-        'paddle_subscription_id', 'paddle_customer_id',
+        'paddle_subscription_id', 'paddle_customer_id', 'paddle_platform_customer_id',
         'subscription_status', 'grace_ends_at', 'subscription_expires_at',
         // Credit hours
         'credit_balance', 'credit_rate',
@@ -27,6 +27,7 @@ class Client extends Model
         'grace_ends_at'          => 'datetime',
         'subscription_expires_at' => 'datetime',
         'widget_features'        => 'array',
+        'widget_config'          => 'array',
         'ai_search_enabled'      => 'boolean',
         'widget_enabled'         => 'boolean',
         'admin_override'         => 'boolean',

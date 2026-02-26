@@ -172,21 +172,17 @@
                             <i class="bi bi-check2 me-1"></i> Current Plan
                         </button>
                     @else
-                        <form method="POST" action="{{ route('dashboard.billing.subscribe') }}">
-                            @csrf
-                            <input type="hidden" name="plan_id" value="{{ $plan->id }}">
-                            <button type="submit" class="btn btn-outline-primary w-100"
-                                    onclick="return confirm('Subscribe to the {{ $plan->name }} plan for ${{ number_format($plan->price_monthly, 2) }}/month?')">
-                                <i class="bi bi-arrow-up-circle me-1"></i>
-                                @if($client->plan && $plan->price_monthly > $client->plan->price_monthly)
-                                    Upgrade to {{ $plan->name }}
-                                @elseif($client->plan && $plan->price_monthly < $client->plan->price_monthly)
-                                    Downgrade to {{ $plan->name }}
-                                @else
-                                    Subscribe
-                                @endif
-                            </button>
-                        </form>
+                        <button type="button" class="btn btn-outline-primary w-100"
+                                onclick="openPaddleCheckout('{{ $plan->paddle_price_id }}')">
+                            <i class="bi bi-arrow-up-circle me-1"></i>
+                            @if($client->plan && $plan->price_monthly > $client->plan->price_monthly)
+                                Upgrade to {{ $plan->name }}
+                            @elseif($client->plan && $plan->price_monthly < $client->plan->price_monthly)
+                                Downgrade to {{ $plan->name }}
+                            @else
+                                Subscribe
+                            @endif
+                        </button>
                     @endif
                 </div>
             </div>
@@ -203,3 +199,25 @@
     @endforelse
 </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+    @if($paddleSandbox)
+        Paddle.Environment.set('sandbox');
+    @endif
+    Paddle.Setup({ vendor: {{ (int) $paddleVendorId }} });
+
+    function openPaddleCheckout(priceId) {
+        if (!priceId) { alert('This plan is not yet available for purchase.'); return; }
+        Paddle.Checkout.open({
+            items: [{ priceId: priceId, quantity: 1 }],
+            customer: { email: '{{ auth()->user()->email }}' },
+            customData: {
+                client_id: {{ $client->id }},
+                type: 'widget_subscription'
+            }
+        });
+    }
+</script>
+@endpush

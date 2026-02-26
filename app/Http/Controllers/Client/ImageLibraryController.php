@@ -22,17 +22,24 @@ class ImageLibraryController extends Controller
         $request->validate(['image' => 'required|image|max:5120']);
 
         $file = $request->file('image');
-        $path = $file->store('images/' . Auth::user()->client_id, 'public');
+        $clientId = Auth::user()->client_id;
+        $path = $file->store('images/' . $clientId, 'public');
 
         $image = ImageLibrary::create([
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'file_size' => $file->getSize(),
-            'mime_type' => $file->getMimeType(),
-            'url'       => Storage::url($path),
+            'client_id'         => $clientId,
+            'filename'          => basename($path),
+            'original_filename' => $file->getClientOriginalName(),
+            'file_path'         => $path,
+            'file_size'         => $file->getSize(),
+            'mime_type'         => $file->getMimeType(),
         ]);
 
-        return response()->json(['url' => $image->url, 'id' => $image->id]);
+        if ($request->expectsJson()) {
+            return response()->json(['url' => Storage::url($path), 'id' => $image->id]);
+        }
+
+        return redirect()->route('dashboard.images.index')
+            ->with('success', 'Image uploaded successfully.');
     }
 
     public function destroy($id)

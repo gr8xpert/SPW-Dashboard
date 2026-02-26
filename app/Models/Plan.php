@@ -9,7 +9,7 @@ class Plan extends Model
     protected $fillable = [
         'name', 'slug', 'max_contacts', 'max_emails_per_month',
         'max_templates', 'max_users', 'max_image_storage_mb',
-        'features', 'price_monthly', 'price_yearly', 'is_active', 'sort_order',
+        'features', 'price_monthly', 'price_yearly', 'paddle_price_id', 'is_active', 'sort_order',
         // Widget fields
         'max_languages', 'ai_search_enabled', 'widget_included', 'mailer_included',
     ];

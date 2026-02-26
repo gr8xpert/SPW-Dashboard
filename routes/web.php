@@ -47,6 +47,22 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Cron scheduler endpoint (for Plesk "Fetch a URL" scheduled tasks)
+Route::get('/cron-scheduler', function () {
+    $token = request()->query('token');
+    if ($token !== config('app.cron_token', 'spw-cron-8f3k2x9m4p7w')) {
+        abort(403);
+    }
+    $php = '/opt/plesk/php/8.3/bin/php';
+    $artisan = base_path('artisan');
+    $command = escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' schedule:run 2>&1';
+    $output = [];
+    $code = 0;
+    exec($command, $output, $code);
+    return response(implode("\n", $output) . "\nExit: $code", 200)
+        ->header('Content-Type', 'text/plain');
+});
+
 // Auth
 Route::get('/login',          [LoginController::class, 'show'])->name('login');
 Route::post('/login',         [LoginController::class, 'login'])->name('login.post');
@@ -86,6 +102,28 @@ Route::post('/unsubscribe/{token}',[UnsubscribeController::class, 'process'])->n
 // Account status pages
 Route::view('/suspended', 'auth.suspended')->name('suspended');
 Route::view('/cancelled', 'auth.cancelled')->name('cancelled');
+
+// Profile / Change Password (accessible to all authenticated users)
+Route::middleware(['auth'])->group(function () {
+    Route::get('/profile', function () {
+        return view('auth.profile', ['user' => auth()->user()]);
+    })->name('profile');
+
+    Route::put('/profile/password', function (\Illuminate\Http\Request $request) {
+        $request->validate([
+            'current_password' => 'required',
+            'password'         => 'required|string|min:8|confirmed',
+        ]);
+
+        if (!\Illuminate\Support\Facades\Hash::check($request->current_password, auth()->user()->password)) {
+            return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+        }
+
+        auth()->user()->update(['password' => \Illuminate\Support\Facades\Hash::make($request->password)]);
+
+        return back()->with('success', 'Password changed successfully.');
+    })->name('profile.password');
+});
 
 // ─── Client Dashboard Routes ──────────────────────────────────────────────────
 
@@ -172,6 +210,10 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::get('widget/analytics',         [WidgetDashboardController::class, 'analytics'])->name('widget.analytics');
     Route::get('widget/setup',             [WidgetDashboardController::class, 'setup'])->name('widget.setup');
     Route::get('widget/inquiry-contacts',  [WidgetDashboardController::class, 'inquiryContacts'])->name('widget.inquiry-contacts');
+    Route::get('widget/inquiry-contacts/export', [WidgetDashboardController::class, 'exportInquiryContacts'])->name('widget.inquiry-contacts.export');
+    Route::patch('widget/inquiry-contacts/{contact}/status', [WidgetDashboardController::class, 'updateInquiryStatus'])->name('widget.inquiry-contacts.update-status');
+    Route::get('widget/download-plugin',  [WidgetDashboardController::class, 'downloadPlugin'])->name('widget.download-plugin');
+    Route::put('widget/settings',         [WidgetDashboardController::class, 'updateSettings'])->name('widget.update-settings');
 
     // ─── Support Tickets (NEW) ────────────────────────────────────────────
     Route::get('tickets',                  [ClientTicketController::class, 'index'])->name('tickets.index');
@@ -181,8 +223,9 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::post('tickets/{ticket}/message',[ClientTicketController::class, 'addMessage'])->name('tickets.message');
 
     // ─── Credit Hours (NEW) ───────────────────────────────────────────────
-    Route::get('credits',     [ClientCreditController::class, 'index'])->name('credits.index');
-    Route::get('credits/buy', [ClientCreditController::class, 'buy'])->name('credits.buy');
+    Route::get('credits',         [ClientCreditController::class, 'index'])->name('credits.index');
+    Route::get('credits/buy',     [ClientCreditController::class, 'buy'])->name('credits.buy');
+    Route::post('credits/purchase', [ClientCreditController::class, 'purchase'])->name('credits.purchase');
 
     // ─── Onboarding (NEW) ─────────────────────────────────────────────────
     Route::get('onboarding',        [OnboardingController::class, 'index'])->name('onboarding.index');
@@ -247,10 +290,10 @@ Route::middleware(['auth', 'role:super_admin'])
     Route::post('widget-clients/{client}/expire',             [WidgetClientController::class, 'expire'])->name('widget-clients.expire');
     Route::get('subscription-status',                         [WidgetClientController::class, 'subscriptionStatus'])->name('subscription-status');
 
-    // ─── License Keys (NEW) ───────────────────────────────────────────────
-    Route::get('license-keys',                [LicenseKeyController::class, 'index'])->name('license-keys.index');
-    Route::post('license-keys',               [LicenseKeyController::class, 'store'])->name('license-keys.store');
-    Route::post('license-keys/{licenseKey}/revoke', [LicenseKeyController::class, 'revoke'])->name('license-keys.revoke');
+    // ─── License Keys (inline on widget-client edit) ───────────────────────
+    Route::post('widget-clients/{client}/revoke-license',      [WidgetClientController::class, 'revokeLicense'])->name('widget-clients.revoke-license');
+    Route::post('widget-clients/{client}/regenerate-license',  [WidgetClientController::class, 'regenerateLicense'])->name('widget-clients.regenerate-license');
+    Route::get('widget-clients/{client}/check-connection',     [WidgetClientController::class, 'checkConnection'])->name('widget-clients.check-connection');
 
     // ─── Tickets (NEW) ───────────────────────────────────────────────────
     Route::get('tickets',                          [AdminTicketController::class, 'index'])->name('tickets.index');

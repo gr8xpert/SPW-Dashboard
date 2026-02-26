@@ -5,7 +5,7 @@
 @section('page-content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Edit Widget Client: {{ $client->domain }}</h1>
+        <h1 class="h3 mb-0">Edit Widget Client: {{ $client->domain ?: $client->company_name }}</h1>
         <a href="{{ route('admin.widget-clients.index') }}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Back to Clients
         </a>
@@ -31,45 +31,108 @@
 
     <div class="row">
         <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Client Details</h5>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('admin.widget-clients.update', $client) }}">
-                        @csrf
-                        @method('PUT')
+            <form method="POST" action="{{ route('admin.widget-clients.update', $client) }}">
+                @csrf
+                @method('PUT')
 
+                {{-- Domain & Identity --}}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-globe me-2 text-primary"></i>Domain & Identity</h6>
+                    </div>
+                    <div class="card-body">
                         <div class="mb-3">
-                            <label for="domain" class="form-label">Domain</label>
-                            <input type="text" class="form-control" id="domain" name="domain"
-                                   value="{{ old('domain', $client->domain) }}" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="api_key" class="form-label">API Key</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" id="api_key" name="api_key"
-                                       value="{{ old('api_key', $client->api_key) }}" readonly>
-                                <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('api_key').value)">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                            </div>
+                            <label for="company_name" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="company_name" name="company_name"
+                                   value="{{ old('company_name', $client->company_name) }}" required>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="plan" class="form-label">Plan</label>
-                                <select class="form-select" id="plan" name="plan" required>
-                                    <option value="free" @selected(old('plan', $client->plan) === 'free')>Free</option>
-                                    <option value="basic" @selected(old('plan', $client->plan) === 'basic')>Basic</option>
-                                    <option value="pro" @selected(old('plan', $client->plan) === 'pro')>Pro</option>
-                                    <option value="enterprise" @selected(old('plan', $client->plan) === 'enterprise')>Enterprise</option>
+                                <label for="domain" class="form-label">Widget Domain</label>
+                                <input type="text" class="form-control" id="domain" name="domain"
+                                       value="{{ old('domain', $client->domain) }}" placeholder="example.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="owner_email" class="form-label">Owner Email</label>
+                                <input type="email" class="form-control" id="owner_email" name="owner_email"
+                                       value="{{ old('owner_email', $client->owner_email) }}" placeholder="owner@example.com">
+                                <div class="form-text">Receives inquiry notifications from the widget</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label for="api_url" class="form-label">Property API URL</label>
+                                <input type="url" class="form-control" id="api_url" name="api_url"
+                                       value="{{ old('api_url', $client->api_url) }}" placeholder="https://inmotechplugin.com/resales6">
+                                <div class="form-text">The client's CRM / property feed endpoint</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="site_name" class="form-label">Site Name</label>
+                                <input type="text" class="form-control" id="site_name" name="site_name"
+                                       value="{{ old('site_name', $client->site_name) }}" placeholder="Costa Casas">
+                                <div class="form-text">Display name for the widget</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="api_key" class="form-label">CRM API Key</label>
+                            <input type="text" class="form-control font-monospace" id="api_key" name="api_key"
+                                   value="{{ old('api_key', $client->api_key) }}" placeholder="IM-RSO-xxxx...">
+                            <div class="form-text">The API key from the client's CRM (e.g., InmoTech/Resales Online)</div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="default_language" class="form-label">Default Language</label>
+                                <select class="form-select" id="default_language" name="default_language">
+                                    <option value="en" @selected(old('default_language', $client->default_language) === 'en')>English</option>
+                                    <option value="en_US" @selected(old('default_language', $client->default_language) === 'en_US')>English (US)</option>
+                                    <option value="mt" @selected(old('default_language', $client->default_language) === 'mt')>Maltese</option>
+                                    <option value="it" @selected(old('default_language', $client->default_language) === 'it')>Italian</option>
+                                    <option value="fr" @selected(old('default_language', $client->default_language) === 'fr')>French</option>
+                                    <option value="es" @selected(old('default_language', $client->default_language) === 'es')>Spanish</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Widget Features</label>
+                                <div class="d-flex gap-3 mt-2">
+                                    @php $features = $client->widget_features ?? []; @endphp
+                                    @foreach(['search', 'detail', 'wishlist'] as $feature)
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="widget_features[]"
+                                                   value="{{ $feature }}" id="feature_{{ $feature }}"
+                                                   @checked(in_array($feature, old('widget_features', $features)))>
+                                            <label class="form-check-label" for="feature_{{ $feature }}">{{ ucfirst($feature) }}</label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Plan & Subscription --}}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-gem me-2 text-primary"></i>Plan & Subscription</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="plan_id" class="form-label">Plan</label>
+                                <select class="form-select" id="plan_id" name="plan_id">
+                                    @foreach($plans as $plan)
+                                        <option value="{{ $plan->id }}" @selected(old('plan_id', $client->plan_id) == $plan->id)>
+                                            {{ $plan->name }}
+                                        </option>
+                                    @endforeach
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label for="subscription_status" class="form-label">Subscription Status</label>
-                                <select class="form-select" id="subscription_status" name="subscription_status" required>
+                                <select class="form-select" id="subscription_status" name="subscription_status">
                                     <option value="active" @selected(old('subscription_status', $client->subscription_status) === 'active')>Active</option>
                                     <option value="grace" @selected(old('subscription_status', $client->subscription_status) === 'grace')>Grace Period</option>
                                     <option value="expired" @selected(old('subscription_status', $client->subscription_status) === 'expired')>Expired</option>
@@ -80,70 +143,369 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="expires_at" class="form-label">Expires At</label>
-                                <input type="date" class="form-control" id="expires_at" name="expires_at"
-                                       value="{{ old('expires_at', $client->expires_at?->format('Y-m-d')) }}">
+                            <div class="col-md-4">
+                                <label for="billing_source" class="form-label">Billing Source</label>
+                                <select class="form-select" id="billing_source" name="billing_source">
+                                    <option value="manual" @selected(old('billing_source', $client->billing_source) === 'manual')>Manual</option>
+                                    <option value="paddle" @selected(old('billing_source', $client->billing_source) === 'paddle')>Paddle</option>
+                                    <option value="internal" @selected(old('billing_source', $client->billing_source) === 'internal')>Internal</option>
+                                </select>
                             </div>
-                            <div class="col-md-6">
-                                <label for="grace_period_ends_at" class="form-label">Grace Period Ends At</label>
-                                <input type="date" class="form-control" id="grace_period_ends_at" name="grace_period_ends_at"
-                                       value="{{ old('grace_period_ends_at', $client->grace_period_ends_at?->format('Y-m-d')) }}">
+                            <div class="col-md-4">
+                                <label for="subscription_expires_at" class="form-label">Expires At</label>
+                                <input type="date" class="form-control" id="subscription_expires_at" name="subscription_expires_at"
+                                       value="{{ old('subscription_expires_at', $client->subscription_expires_at?->format('Y-m-d')) }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="grace_ends_at" class="form-label">Grace Period Ends At</label>
+                                <input type="date" class="form-control" id="grace_ends_at" name="grace_ends_at"
+                                       value="{{ old('grace_ends_at', $client->grace_ends_at?->format('Y-m-d')) }}">
                             </div>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="d-flex gap-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="widget_enabled" name="widget_enabled"
+                                       value="1" @checked(old('widget_enabled', $client->widget_enabled))>
+                                <label class="form-check-label" for="widget_enabled">Widget Enabled</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ai_search_enabled" name="ai_search_enabled"
+                                       value="1" @checked(old('ai_search_enabled', $client->ai_search_enabled))>
+                                <label class="form-check-label" for="ai_search_enabled">AI Search</label>
+                            </div>
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="admin_override" name="admin_override"
                                        value="1" @checked(old('admin_override', $client->admin_override))>
-                                <label class="form-check-label" for="admin_override">
-                                    Admin Override (bypass subscription checks)
-                                </label>
+                                <label class="form-check-label" for="admin_override">Admin Override</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_internal" name="is_internal"
+                                       value="1" @checked(old('is_internal', $client->is_internal))>
+                                <label class="form-check-label" for="is_internal">Internal</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Widget Configuration (pushed to WP plugin via license API) --}}
+                @php $wc = $client->widget_config ?? []; $br = $wc['branding'] ?? []; @endphp
+
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-sliders me-2 text-primary"></i>Widget Configuration</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Pushed to the WordPress plugin during license validation. Can be overridden per-site via WP Custom Config.
+                        </p>
+
+                        {{-- Feature toggles --}}
+                        <div class="d-flex gap-4 mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="wc_enableMapView" name="wc_enableMapView"
+                                       value="1" @checked(old('wc_enableMapView', $wc['enableMapView'] ?? true))>
+                                <label class="form-check-label" for="wc_enableMapView">Map View</label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="wc_enableCurrencyConverter" name="wc_enableCurrencyConverter"
+                                       value="1" @checked(old('wc_enableCurrencyConverter', $wc['enableCurrencyConverter'] ?? true))>
+                                <label class="form-check-label" for="wc_enableCurrencyConverter">Currency Converter</label>
+                            </div>
+                        </div>
+
+                        {{-- Currency settings --}}
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <label for="wc_baseCurrency" class="form-label">Base Currency</label>
+                                <select class="form-select" id="wc_baseCurrency" name="wc_baseCurrency">
+                                    @foreach(['EUR', 'GBP', 'USD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'TRY', 'AED', 'SAR'] as $cur)
+                                        <option value="{{ $cur }}" @selected(old('wc_baseCurrency', $wc['baseCurrency'] ?? 'EUR') === $cur)>{{ $cur }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Available Currencies</label>
+                                @php $availCur = old('wc_availableCurrencies', $wc['availableCurrencies'] ?? ['EUR', 'GBP', 'USD', 'CHF', 'SEK', 'NOK']); @endphp
+                                <div class="d-flex flex-wrap gap-3 mt-1">
+                                    @foreach(['EUR', 'GBP', 'USD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'TRY', 'AED', 'SAR'] as $cur)
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="wc_availableCurrencies[]"
+                                                   value="{{ $cur }}" id="cur_{{ $cur }}"
+                                                   @checked(in_array($cur, $availCur))>
+                                            <label class="form-check-label" for="cur_{{ $cur }}">{{ $cur }}</label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Branding --}}
+                        <h6 class="fw-bold mb-3 pt-3 border-top"><i class="bi bi-palette me-2 text-muted"></i>Branding <span class="fw-normal text-muted small">- used in inquiry emails & PDF exports</span></h6>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="wc_companyName" class="form-label">Company Name</label>
+                                <input type="text" class="form-control" id="wc_companyName" name="wc_companyName"
+                                       value="{{ old('wc_companyName', $br['companyName'] ?? '') }}" placeholder="My Real Estate">
+                                <div class="form-text">Shown in email headers, footers, and PDF</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="wc_websiteUrl" class="form-label">Website URL</label>
+                                <input type="url" class="form-control" id="wc_websiteUrl" name="wc_websiteUrl"
+                                       value="{{ old('wc_websiteUrl', $br['websiteUrl'] ?? '') }}" placeholder="https://example.com">
+                                <div class="form-text">Link in email and PDF footers</div>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="notes" class="form-label">Admin Notes</label>
-                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ old('notes', $client->notes) }}</textarea>
+                            <label for="wc_logoUrl" class="form-label">Logo URL</label>
+                            <div class="input-group">
+                                <input type="url" class="form-control" id="wc_logoUrl" name="wc_logoUrl"
+                                       value="{{ old('wc_logoUrl', $br['logoUrl'] ?? '') }}" placeholder="https://example.com/logo.png">
+                            </div>
+                            <div class="form-text">Recommended: 200x60px, PNG or SVG. Appears in email header and PDF.</div>
+                            @if(!empty($br['logoUrl']))
+                                <div class="mt-2 p-2 bg-light rounded d-inline-block">
+                                    <img src="{{ $br['logoUrl'] }}" alt="Logo preview" style="max-height: 40px; max-width: 200px;" onerror="this.parentElement.innerHTML='<span class=\'text-danger small\'>Failed to load image</span>'">
+                                </div>
+                            @endif
                         </div>
 
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg"></i> Save Changes
-                            </button>
-                            <a href="{{ route('admin.widget-clients.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="wc_primaryColor" class="form-label">Primary Color</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="wc_primaryColorPicker"
+                                           value="{{ old('wc_primaryColor', $br['primaryColor'] ?? '#667eea') }}"
+                                           oninput="document.getElementById('wc_primaryColor').value=this.value">
+                                    <input type="text" class="form-control font-monospace" id="wc_primaryColor" name="wc_primaryColor"
+                                           value="{{ old('wc_primaryColor', $br['primaryColor'] ?? '#667eea') }}" placeholder="#667eea" maxlength="7"
+                                           oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))document.getElementById('wc_primaryColorPicker').value=this.value">
+                                </div>
+                                <div class="form-text">Buttons, links, prices, PDF accents</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="wc_emailHeaderColor" class="form-label">Email Header Color</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="wc_emailHeaderColorPicker"
+                                           value="{{ old('wc_emailHeaderColor', $br['emailHeaderColor'] ?? $br['primaryColor'] ?? '#333333') }}"
+                                           oninput="document.getElementById('wc_emailHeaderColor').value=this.value">
+                                    <input type="text" class="form-control font-monospace" id="wc_emailHeaderColor" name="wc_emailHeaderColor"
+                                           value="{{ old('wc_emailHeaderColor', $br['emailHeaderColor'] ?? '') }}" placeholder="#333333" maxlength="7"
+                                           oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))document.getElementById('wc_emailHeaderColorPicker').value=this.value">
+                                </div>
+                                <div class="form-text">Email header background. Falls back to primary color.</div>
+                            </div>
                         </div>
-                    </form>
+
+                        {{-- Extra JSON overrides --}}
+                        <details class="mt-3 pt-3 border-top">
+                            <summary class="text-muted small" style="cursor: pointer;">
+                                <i class="bi bi-code-slash me-1"></i>Advanced: Extra JSON overrides
+                            </summary>
+                            <div class="mt-2">
+                                <textarea class="form-control font-monospace" id="wc_extraJson" name="wc_extraJson"
+                                          rows="5" style="font-size: .82rem;"
+                                          placeholder='{"debug": true, "labelsMode": "static"}'>{{ old('wc_extraJson', !empty($wc['_extra']) ? json_encode($wc['_extra'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '') }}</textarea>
+                                <div id="wc-extra-validation" class="mt-1"></div>
+                                <div class="form-text">Additional JSON properties merged into the config. Use for options not covered above.</div>
+                            </div>
+                        </details>
+                        <script>
+                        (function() {
+                            var ta = document.getElementById('wc_extraJson');
+                            var v = document.getElementById('wc-extra-validation');
+                            function check() {
+                                var val = ta.value.trim();
+                                if (!val) { v.innerHTML = ''; return; }
+                                try { JSON.parse(val); v.innerHTML = '<span class="text-success small"><i class="bi bi-check-circle"></i> Valid JSON</span>'; }
+                                catch(e) { v.innerHTML = '<span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> ' + e.message + '</span>'; }
+                            }
+                            ta.addEventListener('input', check);
+                            check();
+                        })();
+                        </script>
+                    </div>
                 </div>
-            </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Changes
+                    </button>
+                    <a href="{{ route('admin.widget-clients.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
         </div>
 
         <div class="col-lg-4">
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Client Info</h5>
+            {{-- Connection Status --}}
+            @if($client->domain)
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white border-bottom pt-4 pb-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-wifi me-2 text-primary"></i>Connection Status</h6>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" onclick="checkConnection()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="card-body" id="connection-status">
+                    <div class="text-center py-2">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2 text-muted small">Checking...</span>
+                    </div>
+                </div>
+            </div>
+            <script>
+            function checkConnection() {
+                var statusEl = document.getElementById('connection-status');
+                statusEl.innerHTML = '<div class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><span class="ms-2 text-muted small">Checking...</span></div>';
+
+                fetch('{{ route("admin.widget-clients.check-connection", $client) }}')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var html = '';
+
+                        // Dashboard config status
+                        html += '<div class="d-flex align-items-center gap-2 mb-2">';
+                        html += '<i class="bi bi-circle-fill small text-' + (data.config ? 'success' : 'danger') + '"></i>';
+                        html += '<span class="small">' + (data.config ? 'Dashboard: Configured' : 'Dashboard: Incomplete') + '</span>';
+                        html += '</div>';
+                        if (!data.config && data.config_issues) {
+                            html += '<div class="text-muted small ms-3 mb-2" style="font-size:.7rem">' + data.config_issues.join(', ') + '</div>';
+                        }
+                        if (data.config && data.status) {
+                            var badge = data.status === 'active' || data.status === 'manual' || data.status === 'internal' ? 'success' : (data.status === 'grace' ? 'warning' : 'danger');
+                            html += '<div class="ms-3 mb-2"><span class="badge bg-' + badge + '">' + data.status + '</span>';
+                            if (data.override) html += ' <span class="badge bg-info">override</span>';
+                            html += '</div>';
+                        }
+
+                        // CRM API credentials
+                        html += '<div class="d-flex align-items-center gap-2 mb-2">';
+                        if (data.api === true) {
+                            html += '<i class="bi bi-circle-fill small text-success"></i>';
+                            html += '<span class="small">CRM API: Connected</span>';
+                        } else if (data.api === false) {
+                            html += '<i class="bi bi-circle-fill small text-danger"></i>';
+                            html += '<span class="small">CRM API: ' + (data.api_detail || 'Failed') + '</span>';
+                        }
+                        html += '</div>';
+
+                        // Widget loaded on site
+                        html += '<div class="d-flex align-items-center gap-2">';
+                        html += '<i class="bi bi-circle-fill small text-' + (data.widget ? 'success' : (data.widget === null ? 'secondary' : 'danger')) + '"></i>';
+                        html += '<span class="small">' + (data.widget ? 'Widget: Installed' : (data.widget === null ? 'Widget: Could not reach site' : 'Widget: Not detected')) + '</span>';
+                        html += '</div>';
+
+                        statusEl.innerHTML = html;
+                    })
+                    .catch(function() {
+                        statusEl.innerHTML = '<div class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Check failed</div>';
+                    });
+            }
+            document.addEventListener('DOMContentLoaded', checkConnection);
+            </script>
+            @endif
+
+            {{-- Client Info --}}
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white border-bottom pt-4 pb-3">
+                    <h6 class="fw-bold mb-0">Client Info</h6>
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
+                        <dt class="col-sm-5">ID</dt>
+                        <dd class="col-sm-7">{{ $client->id }}</dd>
+                        <dt class="col-sm-5">Company</dt>
+                        <dd class="col-sm-7">{{ $client->company_name }}</dd>
                         <dt class="col-sm-5">Created</dt>
                         <dd class="col-sm-7">{{ $client->created_at->format('M d, Y') }}</dd>
                         <dt class="col-sm-5">Updated</dt>
                         <dd class="col-sm-7">{{ $client->updated_at->format('M d, Y') }}</dd>
                         <dt class="col-sm-5">License Key</dt>
                         <dd class="col-sm-7">
-                            <code>{{ $client->license_key ?? 'None' }}</code>
+                            @php $lk = $client->licenseKeys->where('status', 'activated')->first(); @endphp
+                            @if($lk)
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control form-control-sm font-monospace" id="license-key-copy"
+                                           value="{{ $lk->license_key }}" readonly style="font-size: .7rem;">
+                                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                                            onclick="navigator.clipboard.writeText(document.getElementById('license-key-copy').value)">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                                <span class="badge bg-success mt-1">Active</span>
+                            @else
+                                <span class="text-muted">None</span>
+                            @endif
                         </dd>
                     </dl>
+
+                    <div class="d-flex gap-2 mt-3 pt-3 border-top">
+                        @if($lk)
+                            <form method="POST" action="{{ route('admin.widget-clients.revoke-license', $client) }}"
+                                  onsubmit="return confirm('Revoke this license key? The widget will stop working.')">
+                                @csrf
+                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                    <i class="bi bi-x-lg"></i> Revoke
+                                </button>
+                            </form>
+                        @endif
+                        <form method="POST" action="{{ route('admin.widget-clients.regenerate-license', $client) }}"
+                              onsubmit="return confirm('{{ $lk ? 'This will revoke the current key and generate a new one.' : 'Generate a new license key?' }}')">
+                            @csrf
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-arrow-repeat"></i> {{ $lk ? 'Regenerate' : 'Generate Key' }}
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
 
+            {{-- Quick Actions --}}
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-white border-bottom pt-4 pb-3">
+                    <h6 class="fw-bold mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <form method="POST" action="{{ route('admin.widget-clients.toggle-override', $client) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-{{ $client->admin_override ? 'warning' : 'success' }} w-100 btn-sm">
+                            <i class="bi bi-shield-{{ $client->admin_override ? 'x' : 'check' }}"></i>
+                            {{ $client->admin_override ? 'Disable Override' : 'Enable Override' }}
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.widget-clients.manual-activate', $client) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary w-100 btn-sm">
+                            <i class="bi bi-play-circle"></i> Manual Activate
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('admin.widget-clients.extend', $client) }}">
+                        @csrf
+                        <div class="input-group input-group-sm">
+                            <select name="period" class="form-select form-select-sm">
+                                <option value="1 month">1 Month</option>
+                                <option value="3 months">3 Months</option>
+                                <option value="6 months">6 Months</option>
+                                <option value="1 year">1 Year</option>
+                            </select>
+                            <button type="submit" class="btn btn-outline-info">
+                                <i class="bi bi-calendar-plus"></i> Extend
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {{-- Danger Zone --}}
             <div class="card border-danger">
                 <div class="card-header bg-danger text-white">
                     <h5 class="card-title mb-0">Danger Zone</h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small">Permanently delete this client and all associated data.</p>
-                    <form method="POST" action="{{ route('admin.widget-clients.destroy', $client) }}"
+                    <form method="POST" action="{{ route('admin.clients.destroy', $client) }}"
                           onsubmit="return confirm('Are you sure you want to delete this client? This action cannot be undone.')">
                         @csrf
                         @method('DELETE')

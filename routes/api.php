@@ -8,12 +8,15 @@ use App\Http\Controllers\Api\WidgetInquiryController;
 use App\Http\Controllers\Api\WidgetAnalyticsController;
 use App\Http\Controllers\Api\LicenseController;
 use App\Http\Controllers\Api\Internal\TicketEmailReplyController;
-use App\Http\Controllers\Billing\PaddleWebhookController;
+use App\Http\Controllers\Billing\PaddleWidgetWebhookController;
+use App\Http\Controllers\Billing\PaddlePlatformWebhookController;
 use Illuminate\Support\Facades\Route;
 
-// ─── Paddle Webhook (verified by signature) ─────────────────────────────────
-Route::post('/webhooks/paddle', [PaddleWebhookController::class, 'handle'])
-    ->name('paddle.webhook');
+// ─── Paddle Webhooks (verified by per-account signature) ─────────────────────
+Route::post('/webhooks/paddle/widget', [PaddleWidgetWebhookController::class, 'handle'])
+    ->name('paddle.webhook.widget');
+Route::post('/webhooks/paddle/platform', [PaddlePlatformWebhookController::class, 'handle'])
+    ->name('paddle.webhook.platform');
 
 // ─── Widget Public API (no auth — domain-validated) ──────────────────────────
 Route::prefix('v1/widget')->name('widget.')->group(function () {

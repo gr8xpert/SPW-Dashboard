@@ -140,7 +140,7 @@
                                 @forelse($webmasterCredits as $credit)
                                     <tr>
                                         <td>
-                                            <a href="{{ route('admin.webmasters.show', $credit->webmaster_id) }}">
+                                            <a href="{{ route('admin.webmasters.index') }}">
                                                 {{ $credit->name }}
                                             </a>
                                         </td>

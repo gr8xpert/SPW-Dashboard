@@ -20,7 +20,7 @@ class LicenseKey extends Model
     {
         static::creating(function ($key) {
             if (empty($key->license_key)) {
-                $key->license_key = strtoupper(Str::random(8) . '-' . Str::random(8) . '-' . Str::random(8) . '-' . Str::random(8));
+                $key->license_key = strtoupper(Str::random(4) . '-' . Str::random(4) . '-' . Str::random(4) . '-' . Str::random(4));
             }
         });
     }

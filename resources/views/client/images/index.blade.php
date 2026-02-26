@@ -60,14 +60,14 @@
                     <div class="position-relative overflow-hidden"
                          style="height: 140px; background: #f8f9fa;">
                         <img src="{{ $image->url }}"
-                             alt="{{ $image->file_name }}"
+                             alt="{{ $image->original_filename }}"
                              class="w-100 h-100"
                              style="object-fit: cover; object-position: center;">
                     </div>
 
                     <div class="card-body p-2">
-                        <p class="small fw-medium mb-0 text-truncate" title="{{ $image->file_name }}">
-                            {{ $image->file_name }}
+                        <p class="small fw-medium mb-0 text-truncate" title="{{ $image->original_filename }}">
+                            {{ $image->original_filename }}
                         </p>
                         <p class="text-muted" style="font-size: 11px; margin-bottom: 8px;">
                             {{ number_format($image->file_size / 1024, 1) }} KB

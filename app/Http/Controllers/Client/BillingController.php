@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
+use App\Services\PaddleBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,22 +15,21 @@ class BillingController extends Controller
         $client = Auth::user()->client;
         $plans  = Plan::where('is_active', true)->orderBy('sort_order')->get();
 
-        return view('client.billing.index', compact('client', 'plans'));
+        $paddle = PaddleBillingService::for('widget');
+
+        return view('client.billing.index', [
+            'client'          => $client,
+            'plans'           => $plans,
+            'paddleVendorId'  => $paddle->getVendorId(),
+            'paddleSandbox'   => $paddle->isSandbox(),
+        ]);
     }
 
     public function subscribe(Request $request)
     {
-        $request->validate(['plan_id' => 'required|exists:plans,id']);
-
-        $plan = Plan::findOrFail($request->plan_id);
-
-        // Stripe integration placeholder
-        Auth::user()->client->update([
-            'plan_id' => $plan->id,
-            'status'  => 'active',
-        ]);
-
-        return back()->with('success', 'Subscribed to ' . $plan->name . ' plan!');
+        return response()->json([
+            'error' => 'Please use the Subscribe button to complete your purchase through Paddle checkout.',
+        ], 400);
     }
 
     public function cancel(Request $request)

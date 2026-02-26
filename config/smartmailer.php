@@ -12,6 +12,7 @@ return [
     'unsplash_key'     => env('UNSPLASH_ACCESS_KEY'),
     'internal_api_key' => env('INTERNAL_API_KEY'),
     'widget_proxy_url' => env('WIDGET_PROXY_URL'),
+    'widget_analytics_url' => env('WIDGET_ANALYTICS_URL'),
 
     'plans' => [
         'free_trial_days' => 14,
@@ -45,20 +46,39 @@ return [
         'max_concurrent_sessions' => 3,
     ],
 
-    'paddle' => [
-        'vendor_id'      => env('PADDLE_VENDOR_ID'),
-        'api_key'        => env('PADDLE_API_KEY'),
-        'webhook_secret' => env('PADDLE_WEBHOOK_SECRET'),
-        'sandbox'        => env('PADDLE_SANDBOX', true),
+    'paddle_widget' => [
+        'vendor_id'      => env('PADDLE_WIDGET_VENDOR_ID'),
+        'api_key'        => env('PADDLE_WIDGET_API_KEY'),
+        'webhook_secret' => env('PADDLE_WIDGET_WEBHOOK_SECRET'),
+        'sandbox'        => env('PADDLE_WIDGET_SANDBOX', true),
+    ],
+
+    'paddle_platform' => [
+        'vendor_id'      => env('PADDLE_PLATFORM_VENDOR_ID'),
+        'api_key'        => env('PADDLE_PLATFORM_API_KEY'),
+        'webhook_secret' => env('PADDLE_PLATFORM_WEBHOOK_SECRET'),
+        'sandbox'        => env('PADDLE_PLATFORM_SANDBOX', true),
     ],
 
     'credits' => [
         'default_rate'      => 50.00,   // default hourly rate
         'low_balance_hours' => 2,       // warn when balance drops below this
         'packs' => [
-            ['hours' => 5,  'price' => 250],
-            ['hours' => 10, 'price' => 450],
-            ['hours' => 20, 'price' => 800],
+            [
+                'id' => 'pack_5', 'name' => '5 Hours', 'hours' => 5, 'price' => 250,
+                'paddle_price_id' => env('PADDLE_CREDIT_PRICE_5H', ''),
+                'popular' => false, 'features' => ['Bug fixes', 'Minor adjustments'],
+            ],
+            [
+                'id' => 'pack_10', 'name' => '10 Hours', 'hours' => 10, 'price' => 450,
+                'paddle_price_id' => env('PADDLE_CREDIT_PRICE_10H', ''),
+                'popular' => true, 'features' => ['Custom development', 'Priority support'],
+            ],
+            [
+                'id' => 'pack_20', 'name' => '20 Hours', 'hours' => 20, 'price' => 800,
+                'paddle_price_id' => env('PADDLE_CREDIT_PRICE_20H', ''),
+                'popular' => false, 'features' => ['Major features', 'Dedicated support'],
+            ],
         ],
     ],
 

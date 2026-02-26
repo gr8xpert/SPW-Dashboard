@@ -16,7 +16,7 @@ class WebmasterController extends Controller
             ->withCount(['assignedTickets', 'assignedTickets as open_tickets_count' => function ($q) {
                 $q->whereIn('status', ['assigned', 'in_progress', 'review']);
             }])
-            ->get();
+            ->paginate(25);
 
         return view('admin.webmasters.index', compact('webmasters'));
     }

@@ -86,12 +86,12 @@
                                 <td>
                                     <a href="{{ $client->domain }}" target="_blank" rel="noopener">{{ $client->domain }}</a>
                                 </td>
-                                <td><span class="badge bg-info text-dark">{{ ucfirst($client->plan) }}</span></td>
-                                <td>{{ $client->expires_at?->format('M d, Y') ?? '—' }}</td>
-                                <td>{{ $client->grace_period_ends_at?->format('M d, Y') ?? '—' }}</td>
+                                <td><span class="badge bg-info text-dark">{{ ucfirst($client->plan?->name ?? 'N/A') }}</span></td>
+                                <td>{{ $client->subscription_expires_at?->format('M d, Y') ?? '—' }}</td>
+                                <td>{{ $client->grace_ends_at?->format('M d, Y') ?? '—' }}</td>
                                 <td>
                                     @php
-                                        $daysRemaining = $client->grace_period_ends_at ? now()->diffInDays($client->grace_period_ends_at, false) : null;
+                                        $daysRemaining = $client->grace_ends_at ? now()->diffInDays($client->grace_ends_at, false) : null;
                                     @endphp
                                     @if($daysRemaining !== null)
                                         <span class="badge {{ $daysRemaining <= 3 ? 'bg-danger' : 'bg-warning text-dark' }}">
@@ -148,8 +148,8 @@
                         @forelse($recentlyExpired as $client)
                             <tr>
                                 <td>{{ $client->domain }}</td>
-                                <td><span class="badge bg-info text-dark">{{ ucfirst($client->plan) }}</span></td>
-                                <td>{{ $client->expires_at?->format('M d, Y') ?? '—' }}</td>
+                                <td><span class="badge bg-info text-dark">{{ ucfirst($client->plan?->name ?? 'N/A') }}</span></td>
+                                <td>{{ $client->subscription_expires_at?->format('M d, Y') ?? '—' }}</td>
                                 <td>
                                     <a href="{{ route('admin.widget-clients.edit', $client) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-pencil"></i> Edit

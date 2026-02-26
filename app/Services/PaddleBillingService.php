@@ -11,25 +11,41 @@ class PaddleBillingService
     protected string $vendorId;
     protected bool $sandbox;
     protected string $baseUrl;
+    protected string $account;
 
-    public function __construct()
+    public function __construct(string $account = 'widget')
     {
-        $this->apiKey = config('smartmailer.paddle.api_key', '');
-        $this->vendorId = config('smartmailer.paddle.vendor_id', '');
-        $this->sandbox = config('smartmailer.paddle.sandbox', true);
+        $this->account = $account;
+        $this->apiKey = config("smartmailer.paddle_{$account}.api_key", '');
+        $this->vendorId = config("smartmailer.paddle_{$account}.vendor_id", '');
+        $this->sandbox = (bool) config("smartmailer.paddle_{$account}.sandbox", true);
         $this->baseUrl = $this->sandbox
             ? 'https://sandbox-api.paddle.com'
             : 'https://api.paddle.com';
     }
 
     /**
-     * Generate a Paddle checkout overlay URL for a subscription.
+     * Factory method — PaddleBillingService::for('widget') or ::for('platform').
      */
-    public function getCheckoutUrl(string $priceId, array $customData = []): ?string
+    public static function for(string $account): static
     {
-        // Paddle checkout is handled via JS overlay on the frontend.
-        // This method returns the data needed for the Paddle.js initialization.
-        return null; // Paddle.js handles this client-side
+        return new static($account);
+    }
+
+    /**
+     * Get the vendor ID (for frontend Paddle.js initialization).
+     */
+    public function getVendorId(): string
+    {
+        return $this->vendorId;
+    }
+
+    /**
+     * Whether this account is in sandbox mode (for frontend environment toggle).
+     */
+    public function isSandbox(): bool
+    {
+        return $this->sandbox;
     }
 
     /**
@@ -38,10 +54,10 @@ class PaddleBillingService
     public function getCheckoutConfig(string $priceId, string $customerEmail, array $customData = []): array
     {
         return [
-            'vendor_id' => $this->vendorId,
-            'sandbox'   => $this->sandbox,
-            'items'     => [['priceId' => $priceId, 'quantity' => 1]],
-            'customer'  => ['email' => $customerEmail],
+            'vendor_id'   => $this->vendorId,
+            'sandbox'     => $this->sandbox,
+            'items'       => [['priceId' => $priceId, 'quantity' => 1]],
+            'customer'    => ['email' => $customerEmail],
             'custom_data' => $customData,
         ];
     }
@@ -58,17 +74,17 @@ class PaddleBillingService
                 ]);
 
             if ($response->successful()) {
-                Log::info("Paddle subscription {$subscriptionId} cancelled");
+                Log::info("Paddle [{$this->account}] subscription {$subscriptionId} cancelled");
                 return true;
             }
 
-            Log::error("Failed to cancel Paddle subscription {$subscriptionId}", [
+            Log::error("Failed to cancel Paddle [{$this->account}] subscription {$subscriptionId}", [
                 'status' => $response->status(),
                 'body'   => $response->body(),
             ]);
             return false;
         } catch (\Exception $e) {
-            Log::error("Paddle API error cancelling subscription: {$e->getMessage()}");
+            Log::error("Paddle [{$this->account}] API error cancelling subscription: {$e->getMessage()}");
             return false;
         }
     }
@@ -88,13 +104,13 @@ class PaddleBillingService
 
             return null;
         } catch (\Exception $e) {
-            Log::error("Paddle API error getting subscription: {$e->getMessage()}");
+            Log::error("Paddle [{$this->account}] API error getting subscription: {$e->getMessage()}");
             return null;
         }
     }
 
     /**
-     * Create a one-time transaction for credit purchase.
+     * Create a one-time transaction checkout config for credit purchase.
      */
     public function createCreditPurchaseConfig(
         int $clientId,

@@ -52,53 +52,72 @@ class CreditController extends Controller
     {
         $dateFrom = $request->input('from', now()->startOfMonth()->toDateString());
         $dateTo = $request->input('to', now()->toDateString());
+        $thirtyDaysAgo = now()->subDays(30);
 
-        // Per-client summary
-        $clientSummary = Client::select('clients.id', 'clients.company_name', 'clients.credit_balance')
-            ->withSum(['creditTransactions as total_purchased' => function ($q) use ($dateFrom, $dateTo) {
-                $q->where('type', 'purchase')
-                    ->whereBetween('created_at', [$dateFrom, $dateTo]);
-            }], 'hours')
-            ->withSum(['creditTransactions as total_used' => function ($q) use ($dateFrom, $dateTo) {
-                $q->where('type', 'deduction')
-                    ->whereBetween('created_at', [$dateFrom, $dateTo]);
-            }], 'hours')
-            ->having('total_purchased', '>', 0)
-            ->orHaving('total_used', '<', 0)
-            ->orWhere('credit_balance', '>', 0)
-            ->get();
+        // Summary cards
+        $totalIssued = CreditTransaction::where('type', 'purchase')->sum('hours');
+        $totalBalance = Client::sum('credit_balance');
+        $used30d = abs(CreditTransaction::where('type', 'deduction')
+            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->sum('hours'));
+        $clientCount = Client::where('credit_balance', '>', 0)->count();
+
+        $summary = [
+            'total_issued'    => $totalIssued,
+            'in_circulation'  => $totalBalance,
+            'used_30d'        => $used30d,
+            'avg_per_client'  => $clientCount > 0 ? $totalBalance / $clientCount : 0,
+        ];
+
+        // Per-client credit balances
+        $clientCredits = Client::with('plan')
+            ->select('id', 'domain', 'plan_id', 'credit_balance')
+            ->where('credit_balance', '>', 0)
+            ->orWhereHas('creditTransactions', function ($q) use ($thirtyDaysAgo) {
+                $q->where('created_at', '>=', $thirtyDaysAgo);
+            })
+            ->get()
+            ->each(function ($credit) use ($thirtyDaysAgo) {
+                $credit->client_id = $credit->id;
+                $credit->plan = $credit->plan?->name ?? 'N/A';
+                $credit->balance = $credit->credit_balance;
+                $credit->used_30d = abs(CreditTransaction::where('client_id', $credit->id)
+                    ->where('type', 'deduction')
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->sum('hours'));
+            });
 
         // Per-webmaster summary
-        $webmasterSummary = User::where('role', 'webmaster')
-            ->withCount('assignedTickets')
+        $webmasterCredits = User::where('role', 'webmaster')
+            ->withCount('assignedTickets as clients_count')
             ->get()
-            ->map(function ($wm) use ($dateFrom, $dateTo) {
-                $wm->total_hours = CreditTransaction::where('user_id', $wm->id)
+            ->map(function ($wm) use ($thirtyDaysAgo) {
+                $wm->webmaster_id = $wm->id;
+                $wm->balance = 0;
+                $wm->used_30d = abs(CreditTransaction::where('user_id', $wm->id)
                     ->where('type', 'deduction')
-                    ->whereBetween('created_at', [$dateFrom, $dateTo])
+                    ->where('created_at', '>=', $thirtyDaysAgo)
+                    ->sum('hours'));
+                $wm->allocated = CreditTransaction::where('user_id', $wm->id)
+                    ->where('type', 'purchase')
                     ->sum('hours');
                 return $wm;
             });
 
-        // Summary cards
-        $totalRevenue = CreditTransaction::where('type', 'purchase')
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->selectRaw('SUM(hours * COALESCE(rate, 0)) as revenue')
-            ->value('revenue') ?? 0;
-
-        $totalSold = CreditTransaction::where('type', 'purchase')
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->sum('hours');
-
-        $totalConsumed = abs(CreditTransaction::where('type', 'deduction')
-            ->whereBetween('created_at', [$dateFrom, $dateTo])
-            ->sum('hours'));
-
-        $totalBalance = Client::sum('credit_balance');
+        // Recent transactions
+        $recentTransactions = CreditTransaction::with(['client', 'user'])
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->map(function ($txn) {
+                $txn->entity_name = $txn->client?->domain ?? $txn->user?->name ?? '—';
+                $txn->amount = $txn->hours;
+                $txn->balance_after = $txn->balance_after ?? 0;
+                return $txn;
+            });
 
         return view('admin.credits.overview', compact(
-            'clientSummary', 'webmasterSummary',
-            'totalRevenue', 'totalSold', 'totalConsumed', 'totalBalance',
+            'summary', 'clientCredits', 'webmasterCredits', 'recentTransactions',
             'dateFrom', 'dateTo'
         ));
     }

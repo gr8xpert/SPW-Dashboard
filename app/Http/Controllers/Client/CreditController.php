@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Services\CreditService;
+use App\Services\PaddleBillingService;
 use Illuminate\Http\Request;
 
 class CreditController extends Controller
@@ -32,6 +33,24 @@ class CreditController extends Controller
         $client = auth()->user()->client;
         $packs = config('smartmailer.credits.packs');
 
-        return view('client.credits.buy', compact('client', 'packs'));
+        $paddle = PaddleBillingService::for('platform');
+
+        return view('client.credits.buy', [
+            'client'          => $client,
+            'packs'           => $packs,
+            'balance'         => $client->credit_balance,
+            'hourlyRate'      => $client->credit_rate ?: config('smartmailer.credits.default_rate'),
+            'paddleVendorId'  => $paddle->getVendorId(),
+            'paddleSandbox'   => $paddle->isSandbox(),
+        ]);
+    }
+
+    /**
+     * Purchase credit pack (Paddle.js handles checkout; webhook fulfils).
+     */
+    public function purchase(Request $request)
+    {
+        return redirect()->route('dashboard.credits.buy')
+            ->with('info', 'Please use the Buy button to complete your purchase through our payment provider.');
     }
 }

@@ -69,14 +69,10 @@
                         <div class="flex-grow-1"></div>
                     @endif
 
-                    <form method="POST" action="{{ route('dashboard.credits.purchase') }}">
-                        @csrf
-                        <input type="hidden" name="pack_id" value="{{ $pack['id'] }}">
-                        <button type="submit" class="btn {{ $isPopular ? 'btn-primary' : 'btn-outline-primary' }} w-100"
-                                onclick="return confirm('Purchase {{ $pack['hours'] }} credit hours for ${{ number_format($pack['price'], 2) }}?')">
-                            <i class="bi bi-cart-plus me-1"></i> Buy {{ $pack['hours'] }} Hours
-                        </button>
-                    </form>
+                    <button type="button" class="btn {{ $isPopular ? 'btn-primary' : 'btn-outline-primary' }} w-100"
+                            onclick="openCreditCheckout('{{ $pack['paddle_price_id'] }}', {{ $pack['hours'] }})">
+                        <i class="bi bi-cart-plus me-1"></i> Buy {{ $pack['hours'] }} Hours
+                    </button>
                 </div>
             </div>
         </div>
@@ -98,46 +94,44 @@
         <h6 class="fw-bold mb-0"><i class="bi bi-sliders me-2 text-primary"></i>Custom Amount</h6>
     </div>
     <div class="card-body p-4">
-        <p class="text-muted small mb-3">
-            Need a different amount? Enter the number of hours you'd like to purchase.
-        </p>
-        <form method="POST" action="{{ route('dashboard.credits.purchase') }}">
-            @csrf
-            <input type="hidden" name="type" value="custom">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label fw-medium">Hours</label>
-                    <div class="input-group">
-                        <input type="number"
-                               name="hours"
-                               class="form-control @error('hours') is-invalid @enderror"
-                               min="1"
-                               max="100"
-                               step="0.5"
-                               value="{{ old('hours', 5) }}"
-                               required>
-                        <span class="input-group-text">hours</span>
-                    </div>
-                    @error('hours')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                    @enderror
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label fw-medium">Rate</label>
-                    <div class="input-group">
-                        <span class="input-group-text">$</span>
-                        <input type="text" class="form-control" value="{{ $hourlyRate ?? '75.00' }}" readonly>
-                        <span class="input-group-text">/hr</span>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100"
-                            onclick="return confirm('Proceed with custom credit purchase?')">
-                        <i class="bi bi-cart-plus me-1"></i> Purchase
-                    </button>
-                </div>
+        <div class="d-flex align-items-start gap-3">
+            <div class="rounded-3 bg-info bg-opacity-10 p-3 flex-shrink-0">
+                <i class="bi bi-chat-dots fs-4 text-info"></i>
             </div>
-        </form>
+            <div>
+                <p class="mb-1 fw-medium">Need a custom amount of hours?</p>
+                <p class="text-muted small mb-2">
+                    For custom credit hour packages, please contact our support team and we'll create a tailored package for your needs.
+                </p>
+                <a href="{{ route('dashboard.tickets.create') }}" class="btn btn-outline-info btn-sm">
+                    <i class="bi bi-envelope me-1"></i> Contact Support
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+    @if($paddleSandbox)
+        Paddle.Environment.set('sandbox');
+    @endif
+    Paddle.Setup({ vendor: {{ (int) $paddleVendorId }} });
+
+    function openCreditCheckout(priceId, hours) {
+        if (!priceId) { alert('This pack is not yet available for purchase.'); return; }
+        Paddle.Checkout.open({
+            items: [{ priceId: priceId, quantity: 1 }],
+            customer: { email: '{{ auth()->user()->email }}' },
+            customData: {
+                type: 'credit_purchase',
+                client_id: {{ $client->id }},
+                hours: hours,
+                rate: {{ $client->credit_rate ?: config('smartmailer.credits.default_rate') }}
+            }
+        });
+    }
+</script>
+@endpush

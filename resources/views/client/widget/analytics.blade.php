@@ -11,36 +11,39 @@
     <div class="d-flex gap-2">
         <form method="GET" action="{{ route('dashboard.widget.analytics') }}" class="d-flex gap-2">
             <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
-                <option value="7"  {{ request('period', '30') == '7'  ? 'selected' : '' }}>Last 7 days</option>
-                <option value="30" {{ request('period', '30') == '30' ? 'selected' : '' }}>Last 30 days</option>
-                <option value="90" {{ request('period', '30') == '90' ? 'selected' : '' }}>Last 90 days</option>
+                <option value="7"   {{ ($period ?? '30') == '7'   ? 'selected' : '' }}>Last 7 days</option>
+                <option value="30"  {{ ($period ?? '30') == '30'  ? 'selected' : '' }}>Last 30 days</option>
+                <option value="90"  {{ ($period ?? '30') == '90'  ? 'selected' : '' }}>Last 90 days</option>
+                <option value="all" {{ ($period ?? '30') == 'all' ? 'selected' : '' }}>All time</option>
             </select>
         </form>
     </div>
 </div>
 
+{{-- API Down Banner --}}
+@if(!empty($apiDown))
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>Analytics data is temporarily unavailable. Some information may be incomplete. Please try again later.</div>
+</div>
+@endif
+
 {{-- Stat Cards --}}
 <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-3 bg-primary bg-opacity-10 p-3">
                     <i class="bi bi-search fs-4 text-primary"></i>
                 </div>
                 <div>
-                    <div class="text-muted small">Total Searches</div>
+                    <div class="text-muted small">Searches</div>
                     <div class="fw-bold fs-4">{{ number_format($stats['searches'] ?? 0) }}</div>
-                    @if(isset($stats['searches_change']))
-                        <small class="{{ $stats['searches_change'] >= 0 ? 'text-success' : 'text-danger' }}">
-                            <i class="bi bi-{{ $stats['searches_change'] >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
-                            {{ abs($stats['searches_change']) }}%
-                        </small>
-                    @endif
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-3 bg-success bg-opacity-10 p-3">
@@ -48,18 +51,38 @@
                 </div>
                 <div>
                     <div class="text-muted small">Property Views</div>
-                    <div class="fw-bold fs-4">{{ number_format($stats['views'] ?? 0) }}</div>
-                    @if(isset($stats['views_change']))
-                        <small class="{{ $stats['views_change'] >= 0 ? 'text-success' : 'text-danger' }}">
-                            <i class="bi bi-{{ $stats['views_change'] >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
-                            {{ abs($stats['views_change']) }}%
-                        </small>
-                    @endif
+                    <div class="fw-bold fs-4">{{ number_format($stats['property_views'] ?? 0) }}</div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+    <div class="col-6 col-xl">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-3 bg-info bg-opacity-10 p-3">
+                    <i class="bi bi-hand-index fs-4 text-info"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">Card Clicks</div>
+                    <div class="fw-bold fs-4">{{ number_format($stats['card_clicks'] ?? 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-3 bg-danger bg-opacity-10 p-3">
+                    <i class="bi bi-heart fs-4 text-danger"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">Wishlist Adds</div>
+                    <div class="fw-bold fs-4">{{ number_format($stats['wishlist_adds'] ?? 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-3 bg-warning bg-opacity-10 p-3">
@@ -68,48 +91,93 @@
                 <div>
                     <div class="text-muted small">Inquiries</div>
                     <div class="fw-bold fs-4">{{ number_format($stats['inquiries'] ?? 0) }}</div>
-                    @if(isset($stats['inquiries_change']))
-                        <small class="{{ $stats['inquiries_change'] >= 0 ? 'text-success' : 'text-danger' }}">
-                            <i class="bi bi-{{ $stats['inquiries_change'] >= 0 ? 'arrow-up' : 'arrow-down' }}"></i>
-                            {{ abs($stats['inquiries_change']) }}%
-                        </small>
-                    @endif
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-sm-6 col-xl-3">
+</div>
+
+{{-- Charts Row --}}
+<div class="row g-4 mb-4">
+    {{-- Activity Trends Line Chart --}}
+    <div class="col-lg-8">
         <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center gap-3">
-                <div class="rounded-3 bg-info bg-opacity-10 p-3">
-                    <i class="bi bi-percent fs-4 text-info"></i>
+            <div class="card-header bg-white border-bottom pt-4 pb-3 d-flex align-items-center justify-content-between">
+                <h6 class="fw-bold mb-0"><i class="bi bi-bar-chart-line me-2 text-primary"></i>Activity Over Time</h6>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" data-chart="all">All</button>
+                    <button type="button" class="btn btn-outline-primary" data-chart="searches">Searches</button>
+                    <button type="button" class="btn btn-outline-primary" data-chart="views">Views</button>
+                    <button type="button" class="btn btn-outline-primary" data-chart="inquiries">Inquiries</button>
                 </div>
-                <div>
-                    <div class="text-muted small">Conversion Rate</div>
-                    <div class="fw-bold fs-4">{{ $stats['conversion_rate'] ?? '0.0' }}%</div>
-                    <small class="text-muted">views to inquiries</small>
-                </div>
+            </div>
+            <div class="card-body">
+                <canvas id="widgetAnalyticsChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {{-- Event Breakdown Donut --}}
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-bottom pt-4 pb-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-pie-chart me-2 text-primary"></i>Event Breakdown</h6>
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                @if(($stats['searches'] ?? 0) + ($stats['property_views'] ?? 0) + ($stats['inquiries'] ?? 0) > 0)
+                    <canvas id="eventBreakdownChart" height="260"></canvas>
+                @else
+                    <p class="text-muted mb-0">No event data yet.</p>
+                @endif
             </div>
         </div>
     </div>
 </div>
 
-{{-- Chart Area --}}
+{{-- Top Properties Table --}}
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white border-bottom pt-4 pb-3 d-flex align-items-center justify-content-between">
-        <h6 class="fw-bold mb-0"><i class="bi bi-bar-chart-line me-2 text-primary"></i>Activity Over Time</h6>
-        <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-primary active" data-chart="all">All</button>
-            <button type="button" class="btn btn-outline-primary" data-chart="searches">Searches</button>
-            <button type="button" class="btn btn-outline-primary" data-chart="views">Views</button>
-            <button type="button" class="btn btn-outline-primary" data-chart="inquiries">Inquiries</button>
-        </div>
+    <div class="card-header bg-white border-bottom pt-4 pb-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-trophy me-2 text-primary"></i>Top Properties</h6>
     </div>
-    <div class="card-body">
-        <canvas id="widgetAnalyticsChart" height="300"></canvas>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Property Ref</th>
+                        <th>Location</th>
+                        <th class="text-end">Views</th>
+                        <th class="text-end">Clicks</th>
+                        <th class="text-end">Wishlist</th>
+                        <th class="text-end">Inquiries</th>
+                        <th class="text-end">Unique Users</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($topProperties ?? [] as $property)
+                        <tr>
+                            <td class="fw-medium">{{ $property['property_ref'] ?? '-' }}</td>
+                            <td>{{ $property['location'] ?? '-' }}</td>
+                            <td class="text-end">{{ number_format($property['views'] ?? 0) }}</td>
+                            <td class="text-end">{{ number_format($property['clicks'] ?? 0) }}</td>
+                            <td class="text-end">{{ number_format($property['wishlist_adds'] ?? 0) }}</td>
+                            <td class="text-end">{{ number_format($property['inquiries'] ?? 0) }}</td>
+                            <td class="text-end">{{ number_format($property['unique_users'] ?? 0) }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No property data available yet.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
+{{-- Search Insights --}}
 <div class="row g-4">
     {{-- Top Searched Locations --}}
     <div class="col-lg-6">
@@ -160,7 +228,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Property Type</th>
-                                <th class="text-end">Views</th>
+                                <th class="text-end">Searches</th>
                                 <th class="text-end">% of Total</th>
                             </tr>
                         </thead>
@@ -189,68 +257,104 @@
 
 @push('scripts')
 <script>
+const chartData = @json($chartData);
+
+// Activity Trends Line Chart
 const ctx = document.getElementById('widgetAnalyticsChart');
-const chartData = @json($chartData ?? ['labels' => [], 'searches' => [], 'views' => [], 'inquiries' => []]);
-
-const chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: chartData.labels,
-        datasets: [
-            {
-                label: 'Searches',
-                data: chartData.searches,
-                borderColor: '#2563EB',
-                backgroundColor: 'rgba(37,99,235,.08)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-            },
-            {
-                label: 'Views',
-                data: chartData.views,
-                borderColor: '#10B981',
-                backgroundColor: 'rgba(16,185,129,.08)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-            },
-            {
-                label: 'Inquiries',
-                data: chartData.inquiries,
-                borderColor: '#F59E0B',
-                backgroundColor: 'rgba(245,158,11,.08)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
+if (ctx) {
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Searches',
+                    data: chartData.searches,
+                    borderColor: '#2563EB',
+                    backgroundColor: 'rgba(37,99,235,.08)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'Views',
+                    data: chartData.views,
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16,185,129,.08)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'Inquiries',
+                    data: chartData.inquiries,
+                    borderColor: '#F59E0B',
+                    backgroundColor: 'rgba(245,158,11,.08)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.04)' } }
             }
-        ]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'top' } },
-        scales: {
-            x: { grid: { display: false } },
-            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,.04)' } }
         }
-    }
-});
-
-document.querySelectorAll('[data-chart]').forEach(btn => {
-    btn.addEventListener('click', function () {
-        document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        const mode = this.dataset.chart;
-        chart.data.datasets.forEach(ds => {
-            if (mode === 'all') {
-                ds.hidden = false;
-            } else {
-                ds.hidden = ds.label.toLowerCase() !== mode;
-            }
-        });
-        chart.update();
     });
-});
+
+    document.querySelectorAll('[data-chart]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('[data-chart]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const mode = this.dataset.chart;
+            chart.data.datasets.forEach(ds => {
+                if (mode === 'all') {
+                    ds.hidden = false;
+                } else {
+                    ds.hidden = ds.label.toLowerCase() !== mode;
+                }
+            });
+            chart.update();
+        });
+    });
+}
+
+// Event Breakdown Donut Chart
+const donutCtx = document.getElementById('eventBreakdownChart');
+if (donutCtx) {
+    new Chart(donutCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Searches', 'Property Views', 'Card Clicks', 'Wishlist Adds', 'Inquiries'],
+            datasets: [{
+                data: [
+                    {{ $stats['searches'] ?? 0 }},
+                    {{ $stats['property_views'] ?? 0 }},
+                    {{ $stats['card_clicks'] ?? 0 }},
+                    {{ $stats['wishlist_adds'] ?? 0 }},
+                    {{ $stats['inquiries'] ?? 0 }}
+                ],
+                backgroundColor: ['#2563EB', '#10B981', '#06B6D4', '#EF4444', '#F59E0B'],
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 12, usePointStyle: true, pointStyle: 'circle' }
+                }
+            }
+        }
+    });
+}
 </script>
 @endpush

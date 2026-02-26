@@ -4,17 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Client;
 use App\Models\LicenseKey;
 use App\Models\Plan;
-use App\Services\WidgetSubscriptionService;
 use Illuminate\Http\Request;
 
 class LicenseKeyController extends Controller
 {
-    public function __construct(
-        protected WidgetSubscriptionService $subscriptionService
-    ) {}
-
     public function index(Request $request)
     {
         $query = LicenseKey::with(['client', 'plan']);
@@ -25,34 +21,36 @@ class LicenseKeyController extends Controller
 
         $licenseKeys = $query->orderByDesc('created_at')->paginate(25);
         $plans = Plan::where('is_active', true)->orderBy('sort_order')->get();
+        $clients = Client::orderBy('company_name')->get();
 
-        return view('admin.license-keys.index', compact('licenseKeys', 'plans'));
+        return view('admin.license-keys.index', compact('licenseKeys', 'plans', 'clients'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'plan_id' => 'required|exists:plans,id',
-            'count'   => 'required|integer|min:1|max:50',
-            'notes'   => 'nullable|string|max:500',
+            'client_id'  => 'required|exists:clients,id',
+            'plan_id'    => 'required|exists:plans,id',
+            'expires_in' => 'nullable|string|in:1_month,1_year,5_years,never',
         ]);
 
-        $keys = [];
-        for ($i = 0; $i < $request->count; $i++) {
-            $key = $this->subscriptionService->generateLicenseKey(
-                $request->plan_id,
-                $request->notes
-            );
-            $keys[] = $key;
-        }
+        $client = Client::findOrFail($request->client_id);
 
-        AuditLog::log('license_keys.generated', 'license_key', null, [
-            'count'   => $request->count,
-            'plan_id' => $request->plan_id,
+        $licenseKey = LicenseKey::create([
+            'client_id' => $client->id,
+            'plan_id'   => $request->plan_id,
+            'status'    => 'activated',
+            'activated_at' => now(),
+            'activated_domain' => $client->domain,
         ]);
 
-        return back()->with('success', "Generated {$request->count} license key(s).")
-            ->with('generated_keys', $keys);
+        AuditLog::log('license_key.generated', 'license_key', $licenseKey->id, [
+            'client_id' => $client->id,
+            'plan_id'   => $request->plan_id,
+        ]);
+
+        return back()->with('success', 'License key generated successfully.')
+            ->with('generated_key', $licenseKey->license_key);
     }
 
     public function revoke(LicenseKey $licenseKey)

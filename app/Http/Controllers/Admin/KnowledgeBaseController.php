@@ -15,7 +15,14 @@ class KnowledgeBaseController extends Controller
             ->orderBy('sort_order')
             ->paginate(25);
 
-        return view('admin.knowledge-base.index', compact('articles'));
+        $categories = KnowledgeArticle::select('category')
+            ->distinct()
+            ->whereNotNull('category')
+            ->orderBy('category')
+            ->get()
+            ->map(fn ($a) => (object) ['id' => $a->category, 'name' => $a->category]);
+
+        return view('admin.knowledge-base.index', compact('articles', 'categories'));
     }
 
     public function create()

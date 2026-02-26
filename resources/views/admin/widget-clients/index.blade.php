@@ -6,9 +6,6 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">Widget Clients</h1>
-        <a href="{{ route('admin.widget-clients.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Add Client
-        </a>
     </div>
 
     {{-- Filters --}}
@@ -68,7 +65,7 @@
                                     <a href="{{ $client->domain }}" target="_blank" rel="noopener">{{ $client->domain }}</a>
                                 </td>
                                 <td>
-                                    <span class="badge bg-info text-dark">{{ ucfirst($client->plan) }}</span>
+                                    <span class="badge bg-info text-dark">{{ ucfirst($client->plan?->name ?? 'N/A') }}</span>
                                 </td>
                                 <td>
                                     @switch($client->subscription_status)
@@ -100,7 +97,7 @@
                                         <span class="text-muted">&mdash;</span>
                                     @endif
                                 </td>
-                                <td>{{ $client->expires_at ? $client->expires_at->format('M d, Y') : '—' }}</td>
+                                <td>{{ $client->subscription_expires_at ? $client->subscription_expires_at->format('M d, Y') : '—' }}</td>
                                 <td>
                                     <a href="{{ route('admin.widget-clients.edit', $client) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-pencil"></i> Edit

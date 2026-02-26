@@ -89,14 +89,14 @@
                                 </td>
                                 <td>{{ $webmaster->created_at->format('M d, Y') }}</td>
                                 <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('admin.webmasters.edit', $webmaster) }}" class="btn btn-outline-primary">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <a href="{{ route('admin.webmasters.show', $webmaster) }}" class="btn btn-outline-secondary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    </div>
+                                    <form method="POST" action="{{ route('admin.webmasters.destroy', $webmaster) }}"
+                                          onsubmit="return confirm('Remove this webmaster?')" class="d-inline">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @empty

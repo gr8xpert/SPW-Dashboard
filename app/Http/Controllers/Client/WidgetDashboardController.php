@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
-use App\Models\WidgetAnalytic;
+use App\Models\Contact;
+use App\Services\WidgetAnalyticsService;
 use App\Services\WidgetSubscriptionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class WidgetDashboardController extends Controller
 {
     public function __construct(
-        protected WidgetSubscriptionService $subscriptionService
+        protected WidgetSubscriptionService $subscriptionService,
+        protected WidgetAnalyticsService $analyticsService,
     ) {}
 
     /**
@@ -31,27 +34,83 @@ class WidgetDashboardController extends Controller
 
     /**
      * Widget analytics: property views, searches, inquiry conversions.
+     * Fetches real data from the RealtysoftV3 PHP analytics API.
      */
     public function analytics(Request $request)
     {
         $client = auth()->user()->client;
-        $days = $request->input('days', 30);
-        $from = now()->subDays($days)->startOfDay();
+        $period = $request->input('period', '30');
 
-        $events = WidgetAnalytic::forClient($client->id)
-            ->where('created_at', '>=', $from)
-            ->selectRaw('event_type, DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('event_type', 'date')
-            ->orderBy('date')
-            ->get();
+        if (!$client->domain) {
+            return view('client.widget.analytics', [
+                'stats'            => [],
+                'chartData'        => ['labels' => [], 'searches' => [], 'views' => [], 'inquiries' => []],
+                'topLocations'     => [],
+                'topPropertyTypes' => [],
+                'topProperties'    => [],
+                'period'           => $period,
+                'apiDown'          => false,
+            ]);
+        }
 
-        $totalSearches = $events->where('event_type', 'search')->sum('count');
-        $totalViews = $events->where('event_type', 'property_view')->sum('count');
-        $totalInquiries = $events->where('event_type', 'inquiry')->sum('count');
-        $inquiryRate = $totalViews > 0 ? round(($totalInquiries / $totalViews) * 100, 1) : 0;
+        $data = $this->analyticsService->getAllAnalytics($client->domain, $period);
+        $apiDown = $data['error'] ?? false;
+
+        // Map summary response to stat card values
+        $summary = $data['summary']['stats'] ?? [];
+        $totalViews = $summary['property_views'] ?? 0;
+        $totalInquiries = $summary['inquiries'] ?? 0;
+        $conversionRate = $totalViews > 0 ? round(($totalInquiries / $totalViews) * 100, 1) : 0;
+
+        $stats = [
+            'searches'       => $summary['searches'] ?? 0,
+            'property_views' => $summary['property_views'] ?? 0,
+            'card_clicks'    => $summary['card_clicks'] ?? 0,
+            'wishlist_adds'  => $summary['wishlist_adds'] ?? 0,
+            'inquiries'      => $totalInquiries,
+            'conversion_rate' => $conversionRate,
+            'unique_sessions' => $data['summary']['unique_sessions'] ?? 0,
+            'total_events'    => $data['summary']['total_events'] ?? 0,
+        ];
+
+        // Map trends response for Chart.js
+        $trends = $data['trends'] ?? [];
+        $chartData = [
+            'labels'    => $trends['labels'] ?? [],
+            'searches'  => $trends['datasets']['searches'] ?? [],
+            'views'     => $trends['datasets']['property_views'] ?? [],
+            'inquiries' => $trends['datasets']['inquiries'] ?? [],
+        ];
+
+        // Map top properties (limit to 10)
+        $topProperties = array_slice($data['properties']['properties'] ?? [], 0, 10);
+
+        // Map search insights
+        $searchData = $data['searches'] ?? [];
+        $totalSearchCount = $searchData['total_searches'] ?? 1;
+
+        $topLocations = collect($searchData['top_locations'] ?? [])
+            ->map(fn ($count, $name) => [
+                'name'       => $name,
+                'count'      => $count,
+                'percentage' => $totalSearchCount > 0 ? round(($count / $totalSearchCount) * 100, 1) : 0,
+            ])
+            ->values()
+            ->take(10)
+            ->all();
+
+        $topPropertyTypes = collect($searchData['top_property_types'] ?? [])
+            ->map(fn ($count, $name) => [
+                'name'       => $name,
+                'count'      => $count,
+                'percentage' => $totalSearchCount > 0 ? round(($count / $totalSearchCount) * 100, 1) : 0,
+            ])
+            ->values()
+            ->take(10)
+            ->all();
 
         return view('client.widget.analytics', compact(
-            'events', 'totalSearches', 'totalViews', 'totalInquiries', 'inquiryRate', 'days'
+            'stats', 'chartData', 'topLocations', 'topPropertyTypes', 'topProperties', 'period', 'apiDown'
         ));
     }
 
@@ -63,25 +122,127 @@ class WidgetDashboardController extends Controller
         $client = auth()->user()->client;
         $client->load('licenseKeys');
 
-        $embedCode = $this->generateEmbedCode($client);
+        $licenseKey = $client->licenseKeys->first()?->key ?? '';
+        $subscription = $client;
+        $pluginVersion = '1.0.0';
+        $settings = [
+            'primary_color' => $client->primary_color ?? '#2563EB',
+            'default_view'  => $client->default_view ?? 'grid',
+            'per_page'      => $client->per_page ?? 24,
+        ];
 
-        return view('client.widget.setup', compact('client', 'embedCode'));
+        return view('client.widget.setup', compact(
+            'client', 'licenseKey', 'subscription', 'pluginVersion', 'settings'
+        ));
     }
 
     /**
      * Contacts captured from widget inquiries.
      */
-    public function inquiryContacts()
+    public function inquiryContacts(Request $request)
     {
         $client = auth()->user()->client;
 
-        $contacts = $client->contacts ?? collect();
+        $query = Contact::where('client_id', $client->id)
+            ->where('source', 'widget_inquiry')
+            ->orderByDesc('created_at');
 
-        // If Contact model has source field, filter by widget_inquiry
-        // For now, we'll rely on the "Widget Inquiries" list
-        $list = $client->contactLists ?? collect();
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
 
-        return view('client.widget.inquiry-contacts', compact('client'));
+        $contacts = $query->paginate(25);
+
+        // Map Contact fields to what the view expects
+        $contacts->getCollection()->transform(function ($contact) {
+            $contact->name = trim($contact->first_name . ' ' . $contact->last_name);
+            $customFields = json_decode($contact->custom_fields, true) ?? [];
+            $contact->property_address = $customFields['last_inquiry_title'] ?? null;
+            $contact->message = $customFields['last_inquiry_message'] ?? null;
+            return $contact;
+        });
+
+        return view('client.widget.inquiry-contacts', compact('contacts'));
+    }
+
+    /**
+     * Download the WordPress plugin ZIP.
+     */
+    public function downloadPlugin()
+    {
+        $pluginPath = resource_path('downloads/realtysoft-connector.zip');
+
+        if (!file_exists($pluginPath)) {
+            return back()->with('error', 'Plugin file not available. Please contact support.');
+        }
+
+        return response()->download($pluginPath, 'realtysoft-connector.zip');
+    }
+
+    /**
+     * Update widget appearance settings.
+     */
+    public function updateSettings(Request $request)
+    {
+        $request->validate([
+            'primary_color' => 'nullable|string|max:7',
+            'default_view'  => 'nullable|in:grid,list,map',
+            'per_page'      => 'nullable|in:12,24,36,48',
+        ]);
+
+        $client = auth()->user()->client;
+        $client->update($request->only(['primary_color', 'default_view', 'per_page']));
+
+        return back()->with('success', 'Widget settings updated.');
+    }
+
+    /**
+     * Export inquiry contacts as CSV.
+     */
+    public function exportInquiryContacts()
+    {
+        $client = auth()->user()->client;
+        $contacts = Contact::where('client_id', $client->id)
+            ->where('source', 'widget_inquiry')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $csv = "Name,Email,Phone,Property,Status,Date\n";
+        foreach ($contacts as $contact) {
+            $name = trim($contact->first_name . ' ' . $contact->last_name);
+            $customFields = json_decode($contact->custom_fields, true) ?? [];
+            $csv .= implode(',', [
+                '"' . str_replace('"', '""', $name) . '"',
+                '"' . str_replace('"', '""', $contact->email ?? '') . '"',
+                '"' . str_replace('"', '""', $contact->phone ?? '') . '"',
+                '"' . str_replace('"', '""', $customFields['last_inquiry_title'] ?? '') . '"',
+                '"' . ($contact->status ?? 'new') . '"',
+                '"' . ($contact->created_at?->format('Y-m-d H:i') ?? '') . '"',
+            ]) . "\n";
+        }
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="inquiry-contacts.csv"',
+        ]);
+    }
+
+    /**
+     * Update inquiry contact status.
+     */
+    public function updateInquiryStatus(Request $request, Contact $contact)
+    {
+        $request->validate(['status' => 'required|in:new,contacted,converted,archived']);
+
+        $contact->update(['status' => $request->status]);
+
+        return back()->with('success', 'Contact status updated.');
     }
 
     protected function generateEmbedCode($client): string

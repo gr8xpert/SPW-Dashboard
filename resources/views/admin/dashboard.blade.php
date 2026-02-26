@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Admin Dashboard — SmartMailer')
+@section('title', 'Admin Dashboard — Smart Property Management')
 @section('page-title', 'Admin Dashboard')
 
 @section('page-content')

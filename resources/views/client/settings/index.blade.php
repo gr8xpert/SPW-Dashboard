@@ -137,7 +137,7 @@
             </div>
             <div class="card-body p-4">
                 <p class="text-muted small mb-3">
-                    Use your API key to integrate SmartMailer with your applications.
+                    Use your API key to integrate Smart Property Management with your applications.
                     Keep it secret — treat it like a password.
                 </p>
 

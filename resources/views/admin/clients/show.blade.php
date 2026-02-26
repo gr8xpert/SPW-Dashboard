@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', $client->company_name . ' — SmartMailer Admin')
+@section('title', $client->company_name . ' — Smart Property Management Admin')
 @section('page-title', 'Client Detail')
 
 @section('page-content')

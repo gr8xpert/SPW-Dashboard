@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subscription Cancelled — SmartMailer</title>
+    <title>Subscription Cancelled — Smart Property Management</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -38,9 +38,9 @@
         {{-- Brand --}}
         <div class="text-center mb-4">
             <div class="brand-logo text-white">
-                <i class="bi bi-envelope-paper-fill me-2"></i>SmartMailer
+                <i class="bi bi-buildings me-2"></i>Smart Property Management
             </div>
-            <p class="text-white-50 mt-1 small">Email Marketing Platform</p>
+            <p class="text-white-50 mt-1 small">Property Management Platform</p>
         </div>
 
         {{-- Card --}}
@@ -69,7 +69,7 @@
         </div>
 
         <p class="text-center text-white-50 small mt-4">
-            &copy; {{ date('Y') }} SmartMailer. All rights reserved.
+            &copy; {{ date('Y') }} Smart Property Management. All rights reserved.
         </p>
 
     </div>

@@ -26,6 +26,10 @@ class WidgetClientController extends Controller
             $query->where('subscription_status', $request->status);
         }
 
+        if ($request->filled('plan')) {
+            $query->where('plan_id', $request->plan);
+        }
+
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('company_name', 'like', "%{$request->search}%")
@@ -33,9 +37,10 @@ class WidgetClientController extends Controller
             });
         }
 
-        $clients = $query->orderByDesc('updated_at')->paginate(25);
+        $clients = $query->orderByDesc('id')->paginate(25);
+        $plans = Plan::orderBy('sort_order')->get();
 
-        return view('admin.widget-clients.index', compact('clients'));
+        return view('admin.widget-clients.index', compact('clients', 'plans'));
     }
 
     public function edit(Client $client)

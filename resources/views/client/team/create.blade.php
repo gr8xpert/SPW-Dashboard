@@ -6,7 +6,7 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
         <h4 class="mb-1 fw-bold"><i class="bi bi-person-plus me-2 text-primary"></i>Invite Team Member</h4>
-        <p class="text-muted mb-0">Add a new member to your SmartMailer team</p>
+        <p class="text-muted mb-0">Add a new member to your Smart Property Management team</p>
     </div>
     <a href="{{ route('dashboard.team.index') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-1"></i> Back to Team

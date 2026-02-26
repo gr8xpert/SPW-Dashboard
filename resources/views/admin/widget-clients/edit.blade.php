@@ -71,7 +71,7 @@
                             <div class="col-md-4">
                                 <label for="site_name" class="form-label">Site Name</label>
                                 <input type="text" class="form-control" id="site_name" name="site_name"
-                                       value="{{ old('site_name', $client->site_name) }}" placeholder="Costa Casas">
+                                       value="{{ old('site_name', $client->site_name) }}" placeholder="Smart Property Widget">
                                 <div class="form-text">Display name for the widget</div>
                             </div>
                         </div>
@@ -98,7 +98,7 @@
                             <div class="col-md-8">
                                 <label class="form-label">Widget Features</label>
                                 <div class="d-flex gap-3 mt-2">
-                                    @php $features = $client->widget_features ?? []; @endphp
+                                    @php $features = $client->widget_features ?? ['search', 'detail', 'wishlist']; @endphp
                                     @foreach(['search', 'detail', 'wishlist'] as $feature)
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" name="widget_features[]"
@@ -265,11 +265,20 @@
                                        value="{{ old('wc_logoUrl', $br['logoUrl'] ?? '') }}" placeholder="https://example.com/logo.png">
                             </div>
                             <div class="form-text">Recommended: 200x60px, PNG or SVG. Appears in email header and PDF.</div>
-                            @if(!empty($br['logoUrl']))
-                                <div class="mt-2 p-2 bg-light rounded d-inline-block">
-                                    <img src="{{ $br['logoUrl'] }}" alt="Logo preview" style="max-height: 40px; max-width: 200px;" onerror="this.parentElement.innerHTML='<span class=\'text-danger small\'>Failed to load image</span>'">
-                                </div>
-                            @endif
+                            <div id="logoPreviewWrap" class="mt-2 p-2 bg-light rounded d-inline-block" style="{{ empty($br['logoUrl']) ? 'display:none' : '' }}">
+                                <img id="logoPreview" src="{{ $br['logoUrl'] ?? '' }}" alt="Logo preview" referrerpolicy="no-referrer" style="max-height: 40px; max-width: 200px;" onerror="this.style.display='none';document.getElementById('logoPreviewError').style.display='';" onload="this.style.display='';document.getElementById('logoPreviewError').style.display='none';">
+                                <span id="logoPreviewError" class="text-danger small" style="display:none">Failed to load image</span>
+                            </div>
+                            <script>
+                            document.getElementById('wc_logoUrl').addEventListener('input', function() {
+                                var wrap = document.getElementById('logoPreviewWrap');
+                                var img = document.getElementById('logoPreview');
+                                var url = this.value.trim();
+                                if (!url) { wrap.style.display = 'none'; return; }
+                                wrap.style.display = '';
+                                img.src = url;
+                            });
+                            </script>
                         </div>
 
                         <div class="row mb-3">

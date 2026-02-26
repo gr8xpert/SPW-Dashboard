@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Plans — SmartMailer Admin')
+@section('title', 'Plans — Smart Property Management Admin')
 @section('page-title', 'Subscription Plans')
 
 @section('page-content')

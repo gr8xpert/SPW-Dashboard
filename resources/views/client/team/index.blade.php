@@ -6,7 +6,7 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
         <h4 class="mb-1 fw-bold"><i class="bi bi-person-badge me-2 text-primary"></i>Team Members</h4>
-        <p class="text-muted mb-0">Manage who has access to your SmartMailer account</p>
+        <p class="text-muted mb-0">Manage who has access to your Smart Property Management account</p>
     </div>
     <a href="{{ route('dashboard.team.create') }}" class="btn btn-primary">
         <i class="bi bi-person-plus me-1"></i> Invite Member

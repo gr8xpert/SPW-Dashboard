@@ -17,7 +17,7 @@ class SecurityHeaders
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('X-XSS-Protection', '1; mode=block');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.paddle.com cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: blob: *.paddle.com; font-src 'self' cdn.jsdelivr.net; connect-src 'self' *.paddle.com; frame-src *.paddle.com");
+        $response->headers->set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' *.paddle.com cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: blob: https: *.paddle.com; font-src 'self' cdn.jsdelivr.net; connect-src 'self' *.paddle.com; frame-src *.paddle.com");
 
         return $response;
     }

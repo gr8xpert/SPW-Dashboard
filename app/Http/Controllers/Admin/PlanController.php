@@ -43,6 +43,8 @@ class PlanController extends Controller
         if ($plan->clients()->count() > 0) {
             return back()->with('error', 'Cannot delete plan that has active clients.');
         }
+        // Remove license keys tied to this plan before deleting
+        $plan->licenseKeys()->delete();
         $plan->delete();
         return redirect()->route('admin.plans.index')->with('success', 'Plan deleted.');
     }

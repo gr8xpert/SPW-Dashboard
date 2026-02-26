@@ -18,10 +18,9 @@
                 <div class="col-md-3">
                     <select name="plan" class="form-select">
                         <option value="">All Plans</option>
-                        <option value="free" @selected(request('plan') === 'free')>Free</option>
-                        <option value="basic" @selected(request('plan') === 'basic')>Basic</option>
-                        <option value="pro" @selected(request('plan') === 'pro')>Pro</option>
-                        <option value="enterprise" @selected(request('plan') === 'enterprise')>Enterprise</option>
+                        @foreach($plans as $plan)
+                            <option value="{{ $plan->id }}" @selected(request('plan') == $plan->id)>{{ $plan->name }}</option>
+                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -90,7 +89,7 @@
                                 </td>
                                 <td>
                                     @if($client->admin_override)
-                                        <span class="badge bg-purple bg-opacity-75 text-white">
+                                        <span class="badge bg-info">
                                             <i class="bi bi-shield-check"></i> Admin Override
                                         </span>
                                     @else

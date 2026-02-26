@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Global Suppressions — SmartMailer Admin')
+@section('title', 'Global Suppressions — Smart Property Management Admin')
 @section('page-title', 'Global Suppressions')
 
 @section('page-content')

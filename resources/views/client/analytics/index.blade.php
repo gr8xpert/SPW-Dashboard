@@ -1,6 +1,6 @@
 @extends('layouts.client')
 
-@section('title', 'Analytics Overview — SmartMailer')
+@section('title', 'Analytics Overview — Smart Property Management')
 
 @section('page-content')
 

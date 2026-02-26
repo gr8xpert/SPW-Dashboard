@@ -91,7 +91,7 @@
                                 <td>{{ $client->grace_ends_at?->format('M d, Y') ?? '—' }}</td>
                                 <td>
                                     @php
-                                        $daysRemaining = $client->grace_ends_at ? now()->diffInDays($client->grace_ends_at, false) : null;
+                                        $daysRemaining = $client->grace_ends_at ? (int) round(now()->diffInDays($client->grace_ends_at, false)) : null;
                                     @endphp
                                     @if($daysRemaining !== null)
                                         <span class="badge {{ $daysRemaining <= 3 ? 'bg-danger' : 'bg-warning text-dark' }}">

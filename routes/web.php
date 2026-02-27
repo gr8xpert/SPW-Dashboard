@@ -48,11 +48,18 @@ Route::get('/', function () {
 });
 
 // Cron scheduler endpoint (for Plesk "Fetch a URL" scheduled tasks)
+// SECURITY: Token MUST be set in .env as APP_CRON_TOKEN - no default fallback
 Route::get('/cron-scheduler', function () {
-    $token = request()->query('token');
-    if ($token !== config('app.cron_token', 'spw-cron-8f3k2x9m4p7w')) {
-        abort(403);
+    $configuredToken = config('app.cron_token');
+    if (empty($configuredToken)) {
+        abort(500, 'APP_CRON_TOKEN not configured');
     }
+
+    $token = request()->query('token');
+    if (!hash_equals($configuredToken, $token ?? '')) {
+        abort(403, 'Invalid token');
+    }
+
     $php = '/opt/plesk/php/8.3/bin/php';
     $artisan = base_path('artisan');
     $command = escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' schedule:run 2>&1';

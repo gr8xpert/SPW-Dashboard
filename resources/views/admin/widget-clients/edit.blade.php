@@ -143,7 +143,14 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label for="billing_cycle" class="form-label">Billing Cycle</label>
+                                <select class="form-select" id="billing_cycle" name="billing_cycle">
+                                    <option value="monthly" @selected(old('billing_cycle', $client->billing_cycle) === 'monthly')>Monthly</option>
+                                    <option value="yearly" @selected(old('billing_cycle', $client->billing_cycle) === 'yearly')>Yearly</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
                                 <label for="billing_source" class="form-label">Billing Source</label>
                                 <select class="form-select" id="billing_source" name="billing_source">
                                     <option value="manual" @selected(old('billing_source', $client->billing_source) === 'manual')>Manual</option>
@@ -151,17 +158,86 @@
                                     <option value="internal" @selected(old('billing_source', $client->billing_source) === 'internal')>Internal</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
-                                <label for="subscription_expires_at" class="form-label">Expires At</label>
+                            <div class="col-md-3">
+                                <label for="subscription_expires_at" class="form-label">
+                                    Expires At
+                                    <button type="button" class="btn btn-link btn-sm p-0 ms-1" id="autoCalcExpiry" title="Auto-calculate from created date">
+                                        <i class="bi bi-calculator"></i>
+                                    </button>
+                                </label>
                                 <input type="date" class="form-control" id="subscription_expires_at" name="subscription_expires_at"
                                        value="{{ old('subscription_expires_at', $client->subscription_expires_at?->format('Y-m-d')) }}">
+                                <div class="form-text text-muted">Grace period (+7 days) calculated automatically</div>
                             </div>
-                            <div class="col-md-4">
-                                <label for="grace_ends_at" class="form-label">Grace Period Ends At</label>
-                                <input type="date" class="form-control" id="grace_ends_at" name="grace_ends_at"
+                            <div class="col-md-3">
+                                <label class="form-label text-muted">Grace Ends At</label>
+                                <input type="text" class="form-control bg-light" id="grace_display" readonly
+                                       value="{{ $client->grace_ends_at?->format('M d, Y') ?? 'Auto-calculated on save' }}">
+                                <input type="hidden" name="grace_ends_at" id="grace_ends_at"
                                        value="{{ old('grace_ends_at', $client->grace_ends_at?->format('Y-m-d')) }}">
                             </div>
                         </div>
+                        <script>
+                        (function() {
+                            const createdAt = new Date('{{ $client->created_at->format('Y-m-d') }}');
+                            const billingCycle = document.getElementById('billing_cycle');
+                            const expiresAt = document.getElementById('subscription_expires_at');
+                            const graceDisplay = document.getElementById('grace_display');
+                            const graceHidden = document.getElementById('grace_ends_at');
+                            const autoCalcBtn = document.getElementById('autoCalcExpiry');
+
+                            function addDays(date, days) {
+                                const result = new Date(date);
+                                result.setDate(result.getDate() + days);
+                                return result;
+                            }
+
+                            function addMonths(date, months) {
+                                const result = new Date(date);
+                                result.setMonth(result.getMonth() + months);
+                                return result;
+                            }
+
+                            function formatDate(date) {
+                                return date.toISOString().split('T')[0];
+                            }
+
+                            function formatDisplay(date) {
+                                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            }
+
+                            function updateGracePeriod() {
+                                if (expiresAt.value) {
+                                    const expiry = new Date(expiresAt.value);
+                                    const grace = addDays(expiry, 7);
+                                    graceDisplay.value = formatDisplay(grace);
+                                    graceHidden.value = formatDate(grace);
+                                } else {
+                                    graceDisplay.value = 'Set expiry date first';
+                                    graceHidden.value = '';
+                                }
+                            }
+
+                            function calculateExpiry() {
+                                const cycle = billingCycle.value;
+                                const months = cycle === 'yearly' ? 12 : 1;
+                                // Calculate from current expiry if set, otherwise from created date
+                                const baseDate = expiresAt.value ? new Date(expiresAt.value) : createdAt;
+                                const newExpiry = addMonths(baseDate, months);
+                                expiresAt.value = formatDate(newExpiry);
+                                updateGracePeriod();
+                            }
+
+                            // Auto-calculate button
+                            autoCalcBtn.addEventListener('click', calculateExpiry);
+
+                            // Update grace when expiry changes
+                            expiresAt.addEventListener('change', updateGracePeriod);
+
+                            // Initial update
+                            updateGracePeriod();
+                        })();
+                        </script>
 
                         <div class="d-flex gap-4">
                             <div class="form-check form-switch">

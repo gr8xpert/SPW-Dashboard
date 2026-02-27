@@ -44,12 +44,12 @@
                         </div>
                         <h5 class="fw-bold mb-1">{{ $pack['name'] }}</h5>
                         <div class="d-flex align-items-baseline justify-content-center gap-1">
-                            <span class="fs-2 fw-bold text-primary">${{ number_format($pack['price'], 0) }}</span>
+                            <span class="fs-2 fw-bold text-primary">€{{ number_format($pack['price'], 0) }}</span>
                         </div>
                         <div class="text-muted small">{{ $pack['hours'] }} hours</div>
                         @if($pack['hours'] > 0 && $pack['price'] > 0)
                             <div class="text-success small fw-medium">
-                                ${{ number_format($pack['price'] / $pack['hours'], 2) }}/hour
+                                €{{ number_format($pack['price'] / $pack['hours'], 2) }}/hour
                             </div>
                         @endif
                     </div>

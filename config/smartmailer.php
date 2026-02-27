@@ -61,7 +61,8 @@ return [
     ],
 
     'credits' => [
-        'default_rate'      => 50.00,   // default hourly rate
+        'currency'          => 'EUR',   // all prices are in Euros
+        'default_rate'      => 50.00,   // default hourly rate in EUR
         'low_balance_hours' => 2,       // warn when balance drops below this
         'packs' => [
             [

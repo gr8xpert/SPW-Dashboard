@@ -37,9 +37,15 @@ class ContactController extends Controller
 
         $contacts = $query->latest()->paginate(50)->withQueryString();
         $lists = ContactList::orderBy('name')->get();
-        $total = Contact::count();
-        $subscribed = Contact::where('status', 'subscribed')->count();
-        $unsubscribed = Contact::where('status', 'unsubscribed')->count();
+
+        // Optimized: Single query for all status counts instead of 3 separate queries
+        $statusCounts = Contact::selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $total = $statusCounts->sum();
+        $subscribed = $statusCounts->get('subscribed', 0);
+        $unsubscribed = $statusCounts->get('unsubscribed', 0);
 
         return view('client.contacts.index', compact('contacts', 'lists', 'total', 'subscribed', 'unsubscribed'));
     }
@@ -76,8 +82,12 @@ class ContactController extends Controller
         // Fire contact_added automations
         try {
             app(AutomationService::class)->checkAndFire('contact_added', $contact);
-        } catch (\Throwable) {
-            // Automation errors must not prevent contact creation
+        } catch (\Throwable $e) {
+            // Automation errors must not prevent contact creation, but we log them
+            \Illuminate\Support\Facades\Log::warning('Automation failed for contact_added', [
+                'contact_id' => $contact->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         return redirect()->route('dashboard.contacts.index')
@@ -223,8 +233,13 @@ class ContactController extends Controller
                     // Fire list_subscribed automations
                     try {
                         app(AutomationService::class)->checkAndFire('list_subscribed', $contact, ['list_id' => $request->list_id]);
-                    } catch (\Throwable) {
-                        // Automation errors must not interrupt bulk actions
+                    } catch (\Throwable $e) {
+                        // Automation errors must not interrupt bulk actions, but we log them
+                        \Illuminate\Support\Facades\Log::warning('Automation failed for list_subscribed', [
+                            'contact_id' => $contact->id,
+                            'list_id' => $request->list_id,
+                            'error' => $e->getMessage(),
+                        ]);
                     }
                 }
                 $msg = count($ids) . ' contacts added to list.';

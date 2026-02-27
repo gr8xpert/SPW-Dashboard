@@ -24,11 +24,11 @@
         <div class="card stat-card">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="icon-box bg-success bg-opacity-10">
-                    <i class="bi bi-currency-dollar text-success"></i>
+                    <i class="bi bi-currency-euro text-success"></i>
                 </div>
                 <div>
                     <div class="text-muted small">Monthly Revenue (MRR)</div>
-                    <div class="fw-bold fs-4">${{ number_format($stats['mrr'], 2) }}</div>
+                    <div class="fw-bold fs-4">€{{ number_format($stats['mrr'], 2) }}</div>
                 </div>
             </div>
         </div>

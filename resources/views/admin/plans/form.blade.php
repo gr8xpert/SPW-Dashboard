@@ -44,9 +44,9 @@
                             @error('slug')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Monthly Price ($) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold">Monthly Price (€) <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <span class="input-group-text">$</span>
+                                <span class="input-group-text">€</span>
                                 <input type="number" name="price_monthly" step="0.01" min="0"
                                        class="form-control @error('price_monthly') is-invalid @enderror"
                                        value="{{ old('price_monthly', $plan->price_monthly ?? '0.00') }}" required>
@@ -54,9 +54,9 @@
                             @error('price_monthly')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Yearly Price ($) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold">Yearly Price (€) <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <span class="input-group-text">$</span>
+                                <span class="input-group-text">€</span>
                                 <input type="number" name="price_yearly" step="0.01" min="0"
                                        class="form-control @error('price_yearly') is-invalid @enderror"
                                        value="{{ old('price_yearly', $plan->price_yearly ?? '0.00') }}" required>

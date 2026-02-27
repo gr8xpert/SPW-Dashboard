@@ -57,10 +57,10 @@
                                     <code class="text-muted small">{{ $plan->slug }}</code>
                                 </td>
                                 <td class="text-end">
-                                    ${{ number_format($plan->price_monthly, 2) }}
+                                    €{{ number_format($plan->price_monthly, 2) }}
                                 </td>
                                 <td class="text-end">
-                                    ${{ number_format($plan->price_yearly, 2) }}
+                                    €{{ number_format($plan->price_yearly, 2) }}
                                 </td>
                                 <td class="text-end">
                                     {{ $plan->max_contacts >= 999999 ? 'Unlimited' : number_format($plan->max_contacts) }}

@@ -64,10 +64,10 @@
                     {{-- Monthly Price --}}
                     <div class="col-md-6">
                         <label class="form-label fw-semibold" for="price_monthly">
-                            Monthly Price ($) <span class="text-danger">*</span>
+                            Monthly Price (€) <span class="text-danger">*</span>
                         </label>
                         <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                            <span class="input-group-text"><i class="bi bi-currency-euro"></i></span>
                             <input type="number" id="price_monthly" name="price_monthly"
                                    step="0.01" min="0"
                                    class="form-control @error('price_monthly') is-invalid @enderror"
@@ -82,10 +82,10 @@
                     {{-- Yearly Price --}}
                     <div class="col-md-6">
                         <label class="form-label fw-semibold" for="price_yearly">
-                            Yearly Price ($) <span class="text-danger">*</span>
+                            Yearly Price (€) <span class="text-danger">*</span>
                         </label>
                         <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-currency-dollar"></i></span>
+                            <span class="input-group-text"><i class="bi bi-currency-euro"></i></span>
                             <input type="number" id="price_yearly" name="price_yearly"
                                    step="0.01" min="0"
                                    class="form-control @error('price_yearly') is-invalid @enderror"

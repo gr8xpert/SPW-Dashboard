@@ -29,11 +29,16 @@ class CampaignController extends Controller
 
         $campaigns = $query->latest()->paginate(20)->withQueryString();
 
+        // Optimized: Single query with groupBy instead of 4 separate count queries
+        $statusCounts = Campaign::selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
         $stats = [
-            'total'     => Campaign::count(),
-            'sent'      => Campaign::where('status', 'sent')->count(),
-            'draft'     => Campaign::where('status', 'draft')->count(),
-            'scheduled' => Campaign::where('status', 'scheduled')->count(),
+            'total'     => $statusCounts->sum(),
+            'sent'      => $statusCounts->get('sent', 0),
+            'draft'     => $statusCounts->get('draft', 0),
+            'scheduled' => $statusCounts->get('scheduled', 0),
         ];
 
         return view('client.campaigns.index', compact('campaigns', 'stats'));
@@ -82,18 +87,32 @@ class CampaignController extends Controller
 
     public function show(Campaign $campaign)
     {
-        $sent      = CampaignSend::where('campaign_id', $campaign->id)->count();
-        $delivered = CampaignSend::where('campaign_id', $campaign->id)->whereNotNull('sent_at')->count();
-        $opens     = EmailEvent::where('campaign_id', $campaign->id)->where('event_type', 'open')->distinct('contact_id')->count();
-        $clicks    = EmailEvent::where('campaign_id', $campaign->id)->where('event_type', 'click')->distinct('contact_id')->count();
+        // Optimized: Single query for send counts
+        $sendStats = CampaignSend::where('campaign_id', $campaign->id)
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN sent_at IS NOT NULL THEN 1 ELSE 0 END) as delivered')
+            ->first();
+
+        $sent      = $sendStats->total ?? 0;
+        $delivered = $sendStats->delivered ?? 0;
+
+        // Optimized: Single query for all event type counts
+        $eventCounts = EmailEvent::where('campaign_id', $campaign->id)
+            ->selectRaw('event_type, COUNT(DISTINCT contact_id) as unique_count, COUNT(*) as total_count')
+            ->groupBy('event_type')
+            ->pluck('unique_count', 'event_type');
+
+        $opens        = $eventCounts->get('open', 0);
+        $clicks       = $eventCounts->get('click', 0);
+        $bounces      = $eventCounts->get('bounce', 0);
+        $unsubscribes = $eventCounts->get('unsubscribe', 0);
 
         $stats = [
             'sent'         => $sent,
             'delivered'    => $delivered,
             'opens'        => $opens,
             'clicks'       => $clicks,
-            'bounces'      => EmailEvent::where('campaign_id', $campaign->id)->where('event_type', 'bounce')->count(),
-            'unsubscribes' => EmailEvent::where('campaign_id', $campaign->id)->where('event_type', 'unsubscribe')->count(),
+            'bounces'      => $bounces,
+            'unsubscribes' => $unsubscribes,
             'open_rate'    => $delivered > 0 ? round($opens  / $delivered * 100, 1) : 0,
             'click_rate'   => $delivered > 0 ? round($clicks / $delivered * 100, 1) : 0,
         ];
@@ -176,8 +195,14 @@ class CampaignController extends Controller
         try {
             app(CampaignSendService::class)->dispatch($campaign);
         } catch (\Throwable $e) {
+            // Log the actual error but don't expose details to user
+            \Illuminate\Support\Facades\Log::error('Campaign send failed', [
+                'campaign_id' => $campaign->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return redirect()->route('dashboard.campaigns.show', $campaign)
-                ->with('error', 'Send failed: ' . $e->getMessage());
+                ->with('error', 'Send failed. Please check your SMTP settings or contact support.');
         }
 
         return redirect()->route('dashboard.campaigns.show', $campaign)
@@ -206,7 +231,13 @@ class CampaignController extends Controller
             app(CampaignSendService::class)->sendTest($campaign, $request->test_email);
             return back()->with('success', 'Test email sent to ' . $request->test_email);
         } catch (\Throwable $e) {
-            return back()->with('error', 'Test send failed: ' . $e->getMessage());
+            // Log the actual error but don't expose internal details to user
+            \Illuminate\Support\Facades\Log::error('Campaign test send failed', [
+                'campaign_id' => $campaign->id,
+                'test_email' => $request->test_email,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Test send failed. Please check your SMTP configuration.');
         }
     }
 

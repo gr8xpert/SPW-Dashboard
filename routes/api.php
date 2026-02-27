@@ -18,8 +18,8 @@ Route::post('/webhooks/paddle/widget', [PaddleWidgetWebhookController::class, 'h
 Route::post('/webhooks/paddle/platform', [PaddlePlatformWebhookController::class, 'handle'])
     ->name('paddle.webhook.platform');
 
-// ─── Widget Public API (no auth — domain-validated) ──────────────────────────
-Route::prefix('v1/widget')->name('widget.')->group(function () {
+// ─── Widget Public API (no auth — domain-validated, rate limited) ────────────
+Route::middleware('throttle:60,1')->prefix('v1/widget')->name('widget.')->group(function () {
     Route::get('/subscription-check', [WidgetController::class, 'subscriptionCheck'])
         ->name('subscription-check');
     Route::get('/client-config', [WidgetController::class, 'clientConfig'])
@@ -40,8 +40,8 @@ Route::middleware('internal.api')->prefix('internal')->name('internal.')->group(
         ->name('tickets.reply-from-email');
 });
 
-// ─── SmartMailer API (API key authenticated) ─────────────────────────────────
-Route::middleware('api.key')->prefix('v1')->group(function () {
+// ─── SmartMailer API (API key authenticated, rate limited) ───────────────────
+Route::middleware(['api.key', 'throttle:120,1'])->prefix('v1')->group(function () {
     // Contacts API
     Route::get('contacts',         [ContactApiController::class, 'index']);
     Route::post('contacts',        [ContactApiController::class, 'store']);

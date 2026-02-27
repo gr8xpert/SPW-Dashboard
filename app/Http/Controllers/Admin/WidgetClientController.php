@@ -63,6 +63,7 @@ class WidgetClientController extends Controller
             'site_name'           => 'nullable|string|max:255',
             'widget_features'     => 'nullable|array',
             'plan_id'             => 'nullable|exists:plans,id',
+            'billing_cycle'       => 'nullable|in:monthly,yearly',
             'billing_source'      => 'nullable|in:paddle,manual,internal',
             'subscription_status' => 'nullable|in:active,grace,expired,manual,internal',
             // Widget config fields
@@ -121,13 +122,21 @@ class WidgetClientController extends Controller
             }
         }
 
+        // Auto-calculate grace period (expiry + 7 days) if expiry is set
+        $graceEndsAt = null;
+        if ($request->filled('subscription_expires_at')) {
+            $expiryDate = \Carbon\Carbon::parse($request->input('subscription_expires_at'));
+            $graceEndsAt = $expiryDate->copy()->addDays(config('smartmailer.widget.grace_period_days', 7));
+        }
+
         $client->update(array_merge(
             $request->only([
                 'company_name', 'domain', 'api_url', 'api_key', 'owner_email', 'default_language',
-                'site_name', 'plan_id', 'billing_source', 'subscription_status',
-                'subscription_expires_at', 'grace_ends_at',
+                'site_name', 'plan_id', 'billing_cycle', 'billing_source', 'subscription_status',
+                'subscription_expires_at',
             ]),
             [
+                'grace_ends_at'     => $graceEndsAt,
                 'widget_features'   => $request->input('widget_features', []),
                 'widget_config'     => $widgetConfig,
                 'ai_search_enabled' => $request->boolean('ai_search_enabled'),

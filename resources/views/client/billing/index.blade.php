@@ -49,7 +49,7 @@
             </div>
             <div class="col-md-3 text-md-center">
                 @if($client->plan && $client->plan->price_monthly > 0)
-                    <div class="fs-3 fw-bold text-primary">${{ number_format($client->plan->price_monthly, 2) }}</div>
+                    <div class="fs-3 fw-bold text-primary">€{{ number_format($client->plan->price_monthly, 2) }}</div>
                     <div class="text-muted small">per month</div>
                 @else
                     <div class="fs-3 fw-bold text-success">Free</div>
@@ -104,14 +104,14 @@
                         <h5 class="fw-bold mb-1">{{ $plan->name }}</h5>
                         <div class="d-flex align-items-baseline gap-1">
                             <span class="fs-2 fw-bold text-primary">
-                                ${{ number_format($plan->price_monthly, 0) }}
+                                €{{ number_format($plan->price_monthly, 0) }}
                             </span>
                             <span class="text-muted">/mo</span>
                         </div>
                         @if($plan->price_yearly)
                             <small class="text-success">
                                 <i class="bi bi-tag me-1"></i>
-                                ${{ number_format($plan->price_yearly / 12, 0) }}/mo billed yearly
+                                €{{ number_format($plan->price_yearly / 12, 0) }}/mo billed yearly
                             </small>
                         @endif
                     </div>

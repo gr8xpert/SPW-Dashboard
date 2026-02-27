@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Log;
 
 class AutomationService
 {
+    public function __construct(
+        protected PersonalizationService $personalization
+    ) {}
+
     public function checkAndFire(string $triggerType, Contact $contact, array $context = []): void
     {
         $automations = Automation::where('trigger_type', $triggerType)
@@ -51,8 +55,8 @@ class AutomationService
             }
 
             $cfg     = $step->config ?? [];
-            $subject = $this->personalize($cfg['subject'] ?? 'Hello, {{first_name}}!', $contact);
-            $html    = $this->personalize($cfg['html'] ?? $cfg['template'] ?? '<p>Hi {{first_name}},</p>', $contact);
+            $subject = $this->personalization->personalize($cfg['subject'] ?? 'Hello, {{first_name}}!', $contact);
+            $html    = $this->personalization->personalize($cfg['html'] ?? $cfg['template'] ?? '<p>Hi {{first_name}},</p>', $contact);
 
             $payload = [
                 'automation_id' => $automation->id,
@@ -88,20 +92,5 @@ class AutomationService
                 ]);
             }
         }
-    }
-
-    private function personalize(string $text, Contact $contact): string
-    {
-        return str_replace(
-            ['{{first_name}}', '{{last_name}}', '{{email}}', '{{company}}', '{{full_name}}'],
-            [
-                $contact->first_name ?? '',
-                $contact->last_name  ?? '',
-                $contact->email,
-                $contact->company    ?? '',
-                $contact->full_name,
-            ],
-            $text
-        );
     }
 }

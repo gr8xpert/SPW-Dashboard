@@ -24,9 +24,20 @@ class DashboardController extends Controller
         $month = now()->format('Y-m');
         $stats['emails_this_month'] = ClientUsage::where('month', $month)->sum('emails_sent');
 
-        $stats['mrr'] = Client::whereIn('status', ['active', 'trial'])
+        // MRR calculation: monthly clients use price_monthly, yearly clients use price_yearly/12
+        // Include clients with active subscription_status OR active/trial status OR admin_override
+        $stats['mrr'] = Client::where(function ($q) {
+                $q->whereIn('subscription_status', ['active', 'grace', 'manual', 'internal'])
+                  ->orWhereIn('status', ['active', 'trial'])
+                  ->orWhere('admin_override', true);
+            })
+            ->whereNotNull('plan_id')
             ->join('plans', 'clients.plan_id', '=', 'plans.id')
-            ->sum('plans.price_monthly');
+            ->selectRaw("SUM(CASE
+                WHEN clients.billing_cycle = 'yearly' THEN plans.price_yearly / 12
+                ELSE plans.price_monthly
+            END) as mrr")
+            ->value('mrr') ?? 0;
 
         // New signups last 30 days
         $stats['new_signups'] = Client::where('created_at', '>=', now()->subDays(30))->count();

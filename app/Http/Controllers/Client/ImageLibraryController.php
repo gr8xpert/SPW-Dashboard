@@ -7,9 +7,25 @@ use App\Models\ImageLibrary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ImageLibraryController extends Controller
 {
+    /**
+     * Allowed MIME types for image uploads (validated server-side).
+     */
+    protected array $allowedMimes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+    ];
+
+    /**
+     * Allowed file extensions.
+     */
+    protected array $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
     public function index()
     {
         $images = ImageLibrary::latest()->paginate(30);
@@ -19,19 +35,42 @@ class ImageLibraryController extends Controller
 
     public function upload(Request $request)
     {
-        $request->validate(['image' => 'required|image|max:5120']);
+        // SECURITY: Validate both MIME type and extension
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+        ]);
 
         $file = $request->file('image');
+
+        // SECURITY: Server-side MIME type validation (don't trust client-provided type)
+        $actualMime = mime_content_type($file->getPathname());
+        if (!in_array($actualMime, $this->allowedMimes)) {
+            return back()->withErrors(['image' => 'Invalid image type detected.']);
+        }
+
+        // SECURITY: Validate extension independently
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, $this->allowedExtensions)) {
+            return back()->withErrors(['image' => 'Invalid file extension.']);
+        }
+
         $clientId = Auth::user()->client_id;
-        $path = $file->store('images/' . $clientId, 'public');
+
+        // SECURITY: Generate safe random filename to prevent path traversal
+        $safeFilename = Str::random(32) . '.' . $extension;
+        $path = $file->storeAs('images/' . $clientId, $safeFilename, 'public');
+
+        // Sanitize original filename for storage (remove path components)
+        $originalFilename = basename($file->getClientOriginalName());
+        $originalFilename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalFilename);
 
         $image = ImageLibrary::create([
             'client_id'         => $clientId,
-            'filename'          => basename($path),
-            'original_filename' => $file->getClientOriginalName(),
+            'filename'          => $safeFilename,
+            'original_filename' => Str::limit($originalFilename, 255),
             'file_path'         => $path,
             'file_size'         => $file->getSize(),
-            'mime_type'         => $file->getMimeType(),
+            'mime_type'         => $actualMime, // Use server-detected MIME, not client-provided
         ]);
 
         if ($request->expectsJson()) {

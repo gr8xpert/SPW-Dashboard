@@ -8,6 +8,10 @@ use App\Models\Contact;
 
 class EmailContentService
 {
+    public function __construct(
+        protected PersonalizationService $personalization
+    ) {}
+
     /**
      * Build personalized, tracked HTML email for a single contact.
      *
@@ -17,10 +21,10 @@ class EmailContentService
     {
         $appUrl = rtrim(config('smartmailer.tracking_domain') ?? config('app.url'), '/');
 
-        // 1. Personalize subject and body
-        $subject   = $this->personalize($campaign->subject, $contact);
-        $html      = $this->personalize($campaign->html_content ?? '', $contact);
-        $plainText = $this->personalize($campaign->plain_text_content ?? '', $contact);
+        // 1. Personalize subject and body using shared service
+        $subject   = $this->personalization->personalize($campaign->subject, $contact);
+        $html      = $this->personalization->personalize($campaign->html_content ?? '', $contact);
+        $plainText = $this->personalization->personalize($campaign->plain_text_content ?? '', $contact);
 
         // 2. Brand kit wrapper (if client has one)
         //    Extract inner content first to prevent double <body> nesting
@@ -52,21 +56,6 @@ class EmailContentService
     }
 
     // ─── Private Helpers ──────────────────────────────────────────────────────
-
-    private function personalize(string $content, Contact $contact): string
-    {
-        return str_replace(
-            ['{{first_name}}', '{{last_name}}', '{{email}}', '{{company}}', '{{full_name}}'],
-            [
-                $contact->first_name ?? '',
-                $contact->last_name  ?? '',
-                $contact->email,
-                $contact->company    ?? '',
-                $contact->full_name,
-            ],
-            $content
-        );
-    }
 
     private function wrapWithBrandKit(string $html, $brandKit): string
     {

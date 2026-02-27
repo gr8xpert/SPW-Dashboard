@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 class Client extends Model
 {
     protected $fillable = [
-        'company_name', 'subdomain', 'custom_domain', 'plan_id',
+        'company_name', 'subdomain', 'custom_domain', 'plan_id', 'billing_cycle',
         'status', 'trial_ends_at', 'stripe_customer_id', 'stripe_subscription_id',
         'api_key', 'api_secret', 'timezone',
         // Widget fields

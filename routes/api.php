@@ -4,10 +4,12 @@ use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\Api\BounceController;
 use App\Http\Controllers\Api\ContactApiController;
 use App\Http\Controllers\Api\WidgetController;
+use App\Http\Controllers\Api\WidgetProxyController;
 use App\Http\Controllers\Api\WidgetInquiryController;
 use App\Http\Controllers\Api\WidgetAnalyticsController;
 use App\Http\Controllers\Api\LicenseController;
 use App\Http\Controllers\Api\Internal\TicketEmailReplyController;
+use App\Http\Controllers\Api\Internal\MicroserviceController;
 use App\Http\Controllers\Billing\PaddleWidgetWebhookController;
 use App\Http\Controllers\Billing\PaddlePlatformWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -32,12 +34,30 @@ Route::middleware('throttle:60,1')->prefix('v1/widget')->name('widget.')->group(
         ->name('capture-inquiry');
     Route::post('/analytics', [WidgetAnalyticsController::class, 'store'])
         ->name('analytics');
+
+    // Proxy endpoints with display preferences applied
+    Route::get('/locations', [WidgetProxyController::class, 'locations'])
+        ->name('locations');
+    Route::get('/property-types', [WidgetProxyController::class, 'propertyTypes'])
+        ->name('property-types');
+    Route::get('/features', [WidgetProxyController::class, 'features'])
+        ->name('features');
+    Route::get('/labels', [WidgetProxyController::class, 'labels'])
+        ->name('labels');
 });
 
 // ─── Internal API (n8n → Laravel, verified by internal API key) ──────────────
 Route::middleware('internal.api')->prefix('internal')->name('internal.')->group(function () {
     Route::post('/tickets/{ticket}/reply-from-email', [TicketEmailReplyController::class, 'handle'])
         ->name('tickets.reply-from-email');
+
+    // Microservice endpoints (for spw-transform)
+    Route::get('/client-resales-config', [MicroserviceController::class, 'resalesConfig'])
+        ->name('client-resales-config');
+    Route::get('/labels', [MicroserviceController::class, 'labels'])
+        ->name('labels');
+    Route::get('/display-preferences', [MicroserviceController::class, 'displayPreferences'])
+        ->name('display-preferences');
 });
 
 // ─── SmartMailer API (API key authenticated, rate limited) ───────────────────

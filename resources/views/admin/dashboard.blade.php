@@ -61,6 +61,94 @@
     </div>
 </div>
 
+{{-- Widget Stats Row --}}
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <h6 class="text-muted mb-3"><i class="bi bi-window-stack me-2"></i>Widget Clients</h6>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card border-start border-primary border-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">Widget Clients</div>
+                        <div class="fw-bold fs-4">{{ number_format($stats['widget_clients']) }}</div>
+                    </div>
+                    <div class="text-primary">
+                        <i class="bi bi-window-stack fs-3"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <span class="badge bg-success">{{ $stats['widget_active'] }} active</span>
+                    <span class="badge bg-secondary">{{ $stats['resales_configured'] }} with API</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card {{ $stats['widget_grace'] > 0 ? 'border-start border-warning border-3' : '' }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">Grace Period</div>
+                        <div class="fw-bold fs-4 {{ $stats['widget_grace'] > 0 ? 'text-warning' : '' }}">{{ number_format($stats['widget_grace']) }}</div>
+                    </div>
+                    <div class="text-warning">
+                        <i class="bi bi-exclamation-triangle fs-3"></i>
+                    </div>
+                </div>
+                @if($stats['widget_grace'] > 0)
+                    <div class="mt-2">
+                        <a href="{{ route('admin.widget-clients.index', ['status' => 'grace']) }}" class="btn btn-outline-warning btn-sm">
+                            View clients
+                        </a>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card {{ $stats['expiring_soon'] > 0 ? 'border-start border-danger border-3' : '' }}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">Expiring in 7 Days</div>
+                        <div class="fw-bold fs-4 {{ $stats['expiring_soon'] > 0 ? 'text-danger' : '' }}">{{ number_format($stats['expiring_soon']) }}</div>
+                    </div>
+                    <div class="text-danger">
+                        <i class="bi bi-calendar-x fs-3"></i>
+                    </div>
+                </div>
+                @if($stats['expiring_soon'] > 0)
+                    <div class="mt-2 text-muted small">Requires attention</div>
+                @endif
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="text-muted small">Expired</div>
+                        <div class="fw-bold fs-4">{{ number_format($stats['widget_expired']) }}</div>
+                    </div>
+                    <div class="text-secondary">
+                        <i class="bi bi-x-circle fs-3"></i>
+                    </div>
+                </div>
+                @if($stats['widget_expired'] > 0)
+                    <div class="mt-2">
+                        <a href="{{ route('admin.widget-clients.index', ['status' => 'expired']) }}" class="btn btn-outline-secondary btn-sm">
+                            View clients
+                        </a>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row g-4">
     {{-- Email Volume Chart --}}
     <div class="col-xl-8">

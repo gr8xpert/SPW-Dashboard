@@ -8,9 +8,14 @@
         <h4 class="mb-1 fw-bold"><i class="bi bi-window-stack me-2 text-primary"></i>Widget Status</h4>
         <p class="text-muted mb-0">Overview of your property search widget subscription and configuration</p>
     </div>
-    <a href="{{ route('dashboard.widget.setup') }}" class="btn btn-primary">
-        <i class="bi bi-gear-wide-connected me-1"></i> Setup Widget
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{{ route('dashboard.widget.config') }}" class="btn btn-outline-primary">
+            <i class="bi bi-sliders me-1"></i> Configure Widget
+        </a>
+        <a href="{{ route('dashboard.widget.setup') }}" class="btn btn-primary">
+            <i class="bi bi-gear-wide-connected me-1"></i> Setup Widget
+        </a>
+    </div>
 </div>
 
 {{-- Subscription Card --}}

@@ -73,16 +73,46 @@ class WidgetSubscriptionService
         if (!$client) return null;
 
         return [
-            'api_key'            => $client->api_key,
-            'api_url'            => $client->api_url,
-            'enabled'            => $client->widget_enabled && $this->shouldAllowAccess($client),
-            'features'           => $client->widget_features ?? [],
-            'language'           => $client->default_language ?? 'en',
-            'owner_email'        => $client->owner_email,
-            'ai_search_enabled'  => $client->ai_search_enabled && ($client->plan?->ai_search_enabled ?? false),
-            'openrouter_api_key' => $client->ai_search_enabled ? $client->openrouter_api_key : null,
-            'max_languages'      => $client->plan?->max_languages ?? 1,
+            'api_key'              => $client->api_key,
+            'api_url'              => $client->api_url,
+            'enabled'              => $client->widget_enabled && $this->shouldAllowAccess($client),
+            'features'             => $client->widget_features ?? [],
+            'language'             => $client->default_language ?? 'en',
+            'owner_email'          => $client->owner_email,
+            'ai_search_enabled'    => $client->ai_search_enabled && ($client->plan?->ai_search_enabled ?? false),
+            'openrouter_api_key'   => $client->ai_search_enabled ? $client->openrouter_api_key : null,
+            'max_languages'        => $client->plan?->max_languages ?? 1,
+            'enabledListingTypes'  => $this->getEnabledListingTypes($client),
         ];
+    }
+
+    /**
+     * Extract enabled listing types from client's resales_settings.
+     * Returns array of widget listing type keys (resale, development, short_rental, long_rental).
+     */
+    public function getEnabledListingTypes(Client $client): array
+    {
+        $resalesSettings = $client->resales_settings ?? [];
+        $enabledTypes = [];
+
+        // Map internal keys to widget keys
+        $keyMap = [
+            'resales' => 'resale',
+            'developments' => 'development',
+            'short_rentals' => 'short_rental',
+            'long_rentals' => 'long_rental',
+        ];
+
+        foreach ($keyMap as $settingsKey => $widgetKey) {
+            $settings = $resalesSettings[$settingsKey] ?? [];
+            // Only include if explicitly enabled (default to false if not set)
+            $isEnabled = $settings['enabled'] ?? false;
+            if ($isEnabled) {
+                $enabledTypes[] = $widgetKey;
+            }
+        }
+
+        return $enabledTypes;
     }
 
     /**

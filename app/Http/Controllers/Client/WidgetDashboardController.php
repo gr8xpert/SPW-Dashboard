@@ -203,6 +203,74 @@ class WidgetDashboardController extends Controller
     }
 
     /**
+     * Show widget configuration page.
+     */
+    public function config()
+    {
+        $client = auth()->user()->client;
+        $config = $client->widget_config ?? [];
+
+        return view('client.widget.config', compact('client', 'config'));
+    }
+
+    /**
+     * Save widget configuration.
+     */
+    public function saveConfig(Request $request)
+    {
+        $request->validate([
+            'enableMapView' => 'nullable',
+            'enableCurrencyConverter' => 'nullable',
+            'enableWishlist' => 'nullable',
+            'baseCurrency' => 'nullable|string|max:3',
+            'availableCurrencies' => 'nullable|array',
+            'availableCurrencies.*' => 'string|max:3',
+            'companyName' => 'nullable|string|max:255',
+            'websiteUrl' => 'nullable|url|max:500',
+            'logoUrl' => 'nullable|url|max:500',
+            'primaryColor' => 'nullable|string|max:7',
+            'emailHeaderColor' => 'nullable|string|max:7',
+            'defaultView' => 'nullable|in:grid,list,map',
+            'perPage' => 'nullable|in:12,24,36,48',
+            'defaultLanguage' => 'nullable|string|max:5',
+        ]);
+
+        $client = auth()->user()->client;
+
+        // Build widget_config array
+        $config = $client->widget_config ?? [];
+
+        // Feature toggles
+        $config['enableMapView'] = $request->boolean('enableMapView');
+        $config['enableCurrencyConverter'] = $request->boolean('enableCurrencyConverter');
+        $config['enableWishlist'] = $request->boolean('enableWishlist');
+
+        // Currency settings
+        $config['baseCurrency'] = $request->input('baseCurrency', 'EUR');
+        $config['availableCurrencies'] = $request->input('availableCurrencies', ['EUR', 'GBP', 'USD']);
+
+        // Display settings
+        $config['defaultView'] = $request->input('defaultView', 'grid');
+        $config['perPage'] = (int) $request->input('perPage', 24);
+
+        // Branding
+        $config['branding'] = [
+            'companyName' => $request->input('companyName'),
+            'websiteUrl' => $request->input('websiteUrl'),
+            'logoUrl' => $request->input('logoUrl'),
+            'primaryColor' => $request->input('primaryColor'),
+            'emailHeaderColor' => $request->input('emailHeaderColor'),
+        ];
+
+        $client->update([
+            'widget_config' => $config,
+            'default_language' => $request->input('defaultLanguage', $client->default_language),
+        ]);
+
+        return back()->with('success', 'Widget configuration saved successfully.');
+    }
+
+    /**
      * Export inquiry contacts as CSV.
      */
     public function exportInquiryContacts()

@@ -77,10 +77,10 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="api_key" class="form-label">CRM API Key</label>
+                            <label for="api_key" class="form-label">CRM API Key (Legacy)</label>
                             <input type="text" class="form-control font-monospace" id="api_key" name="api_key"
                                    value="{{ old('api_key', $client->api_key) }}" placeholder="IM-RSO-xxxx...">
-                            <div class="form-text">The API key from the client's CRM (e.g., InmoTech/Resales Online)</div>
+                            <div class="form-text">Legacy field - use Resales credentials below for new clients</div>
                         </div>
 
                         <div class="row mb-3">
@@ -109,6 +109,296 @@
                                     @endforeach
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Resales Online API Credentials --}}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-cloud-arrow-down me-2 text-primary"></i>Resales Online API</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Direct connection to Resales Online WebAPI V6. These credentials bypass Odoo and connect directly to the property feed.
+                        </p>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="resales_client_id" class="form-label">Client ID (p1)</label>
+                                <input type="text" class="form-control font-monospace" id="resales_client_id" name="resales_client_id"
+                                       value="{{ old('resales_client_id', $client->resales_client_id) }}" placeholder="1003405"
+                                       autocomplete="off" data-lpignore="true" data-form-type="other">
+                                <div class="form-text">Numeric ID from Resales Online</div>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="resales_api_key" class="form-label">API Key (p2)</label>
+                                <input type="text" class="form-control font-monospace" id="resales_api_key" name="resales_api_key"
+                                       value="{{ old('resales_api_key', $client->resales_api_key) }}" placeholder="SHA hash from Resales Online"
+                                       autocomplete="new-password" data-lpignore="true" data-form-type="other" style="-webkit-text-security: disc;">
+                                <div class="form-text">The API key hash - tied to specific IP address</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="resales_filter_id" class="form-label">Filter ID</label>
+                                <input type="text" class="form-control" id="resales_filter_id" name="resales_filter_id"
+                                       value="{{ old('resales_filter_id', $client->resales_filter_id ?? '1') }}" placeholder="1">
+                                <div class="form-text">p_agency_filterid (usually 1)</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="resales_agency_code" class="form-label">Agency Code</label>
+                                <input type="text" class="form-control font-monospace" id="resales_agency_code" name="resales_agency_code"
+                                       value="{{ old('resales_agency_code', $client->resales_agency_code) }}" placeholder="BIS" maxlength="10">
+                                <div class="form-text">Prefix for property refs (e.g., BIS)</div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                @if($client->resales_client_id && $client->resales_api_key)
+                                <button type="button" class="btn btn-outline-primary w-100" onclick="testResalesConnection()">
+                                    <i class="bi bi-plug"></i> Test Connection
+                                </button>
+                                @else
+                                <button type="button" class="btn btn-outline-secondary w-100" disabled>
+                                    <i class="bi bi-plug"></i> Save first to test
+                                </button>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div id="resales-test-result" class="mt-2"></div>
+                    </div>
+                </div>
+                <script>
+                function testResalesConnection() {
+                    var resultEl = document.getElementById('resales-test-result');
+                    resultEl.innerHTML = '<div class="alert alert-info py-2"><i class="bi bi-hourglass-split me-2"></i>Testing connection...</div>';
+
+                    fetch('{{ route("admin.widget-clients.test-resales", $client) }}')
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.success) {
+                                resultEl.innerHTML = '<div class="alert alert-success py-2"><i class="bi bi-check-circle me-2"></i>' + data.message + '</div>';
+                            } else {
+                                resultEl.innerHTML = '<div class="alert alert-danger py-2"><i class="bi bi-x-circle me-2"></i>' + data.message + '</div>';
+                            }
+                        })
+                        .catch(function(e) {
+                            resultEl.innerHTML = '<div class="alert alert-danger py-2"><i class="bi bi-x-circle me-2"></i>Connection test failed</div>';
+                        });
+                }
+                </script>
+
+                {{-- Listing Types & Filters --}}
+                @php $rs = $client->resales_settings ?? []; @endphp
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-list-columns me-2 text-primary"></i>Listing Types & Filters</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Configure which listing types are enabled and their filter settings. Each type can have its own filter ID and minimum price.
+                        </p>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th style="width:25%">Listing Type</th>
+                                        <th style="width:15%">Enabled</th>
+                                        <th style="width:20%">Filter ID</th>
+                                        <th style="width:20%">Own Filter</th>
+                                        <th style="width:20%">Min Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach(['resales' => 'Sales/Resales', 'developments' => 'Developments', 'short_rentals' => 'Short Rentals', 'long_rentals' => 'Long Rentals'] as $key => $label)
+                                    @php $lt = $rs[$key] ?? ['enabled' => ($key === 'resales'), 'filter_id' => '1', 'own_filter' => '', 'min_price' => 0]; @endphp
+                                    <tr>
+                                        <td><strong>{{ $label }}</strong></td>
+                                        <td>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox"
+                                                       name="resales_settings[{{ $key }}][enabled]" value="1"
+                                                       @checked(old("resales_settings.{$key}.enabled", $lt['enabled'] ?? false))>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm" style="width:60px"
+                                                   name="resales_settings[{{ $key }}][filter_id]"
+                                                   value="{{ old("resales_settings.{$key}.filter_id", $lt['filter_id'] ?? '1') }}"
+                                                   placeholder="1">
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm" style="width:60px"
+                                                   name="resales_settings[{{ $key }}][own_filter]"
+                                                   value="{{ old("resales_settings.{$key}.own_filter", $lt['own_filter'] ?? '') }}"
+                                                   placeholder="4">
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" style="width:100px"
+                                                   name="resales_settings[{{ $key }}][min_price]"
+                                                   value="{{ old("resales_settings.{$key}.min_price", $lt['min_price'] ?? 0) }}"
+                                                   placeholder="0" min="0">
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="form-text">
+                            <strong>Filter ID:</strong> The p_agency_filterid parameter for Resales API.<br>
+                            <strong>Own Filter:</strong> Additional filter for own properties only.<br>
+                            <strong>Min Price:</strong> Minimum price filter for this listing type.
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Display Preferences --}}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-sliders2 me-2 text-primary"></i>Display Preferences</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Customize which locations, property types, and features are shown on the widget, and in what order.
+                        </p>
+
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'location']) }}"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-geo-alt me-1"></i> Manage Locations
+                            </a>
+                            <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'property_type']) }}"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-house me-1"></i> Manage Property Types
+                            </a>
+                            <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'feature']) }}"
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-check2-square me-1"></i> Manage Features
+                            </a>
+                        </div>
+
+                        <div class="mt-3 pt-3 border-top">
+                            <h6 class="small text-muted mb-2">Custom Grouping</h6>
+                            <p class="form-text mb-2">Create custom groups and organize feed items into them for better organization.</p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-2">
+                                <div class="d-flex align-items-center gap-1">
+                                    <a href="{{ route('admin.widget-clients.location-grouping.index', $client) }}"
+                                       class="btn btn-{{ $client->custom_location_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                        <i class="bi bi-geo-alt me-1"></i> Location Grouping
+                                    </a>
+                                    @if($client->custom_location_grouping_enabled)
+                                        <span class="badge bg-success">On</span>
+                                    @endif
+                                </div>
+
+                                <div class="d-flex align-items-center gap-1">
+                                    <a href="{{ route('admin.widget-clients.property-type-grouping.index', $client) }}"
+                                       class="btn btn-{{ $client->custom_property_type_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                        <i class="bi bi-house me-1"></i> Property Type Grouping
+                                    </a>
+                                    @if($client->custom_property_type_grouping_enabled)
+                                        <span class="badge bg-success">On</span>
+                                    @endif
+                                </div>
+
+                                <div class="d-flex align-items-center gap-1">
+                                    <a href="{{ route('admin.widget-clients.feature-grouping.index', $client) }}"
+                                       class="btn btn-{{ $client->custom_feature_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                        <i class="bi bi-check2-square me-1"></i> Feature Grouping
+                                    </a>
+                                    @if($client->custom_feature_grouping_enabled)
+                                        <span class="badge bg-success">On</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-text mt-2">
+                            These settings allow you to hide specific items or reorder them to appear in a custom sequence.
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Custom Price Ranges --}}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom pt-4 pb-3">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-currency-euro me-2 text-primary"></i>Custom Price Ranges</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Configure custom price dropdown values for each listing type. Leave empty to use default ranges.
+                        </p>
+
+                        @php
+                            $listingTypes = [
+                                'resale' => 'Sales/Resales',
+                                'development' => 'Developments',
+                                'long_rental' => 'Long Rentals',
+                                'short_rental' => 'Short Rentals'
+                            ];
+                            $priceRanges = $client->widget_config['priceRanges'] ?? [];
+                        @endphp
+
+                        <ul class="nav nav-tabs mb-3" role="tablist">
+                            @foreach($listingTypes as $key => $label)
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link @if($loop->first) active @endif"
+                                            id="price-{{ $key }}-tab"
+                                            data-bs-toggle="tab"
+                                            data-bs-target="#price-{{ $key }}"
+                                            type="button" role="tab">
+                                        {{ $label }}
+                                        @if(!empty($priceRanges[$key]))
+                                            <span class="badge bg-primary ms-1">Custom</span>
+                                        @endif
+                                    </button>
+                                </li>
+                            @endforeach
+                        </ul>
+
+                        <div class="tab-content">
+                            @foreach($listingTypes as $key => $label)
+                                <div class="tab-pane fade @if($loop->first) show active @endif"
+                                     id="price-{{ $key }}" role="tabpanel">
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Minimum Price Options</label>
+                                            <textarea class="form-control font-monospace"
+                                                      name="widget_price_ranges[{{ $key }}][min]"
+                                                      rows="3"
+                                                      placeholder="150000, 200000, 250000, 300000, 400000, 500000">{{ implode(', ', $priceRanges[$key]['min'] ?? []) }}</textarea>
+                                            <div class="form-text">Comma-separated values (ascending order)</div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Maximum Price Options</label>
+                                            <textarea class="form-control font-monospace"
+                                                      name="widget_price_ranges[{{ $key }}][max]"
+                                                      rows="3"
+                                                      placeholder="200000, 300000, 500000, 750000, 1000000, 2000000">{{ implode(', ', $priceRanges[$key]['max'] ?? []) }}</textarea>
+                                            <div class="form-text">Comma-separated values (ascending order)</div>
+                                        </div>
+                                    </div>
+
+                                    @if($key === 'resale' || $key === 'development')
+                                        <div class="alert alert-light border py-2 mb-0">
+                                            <small><strong>Default:</strong> 50K, 100K, 150K, 200K, 250K, 300K, 400K, 500K, 750K, 1M, 1.5M, 2M, 3M, 5M, 10M, 20M</small>
+                                        </div>
+                                    @elseif($key === 'long_rental')
+                                        <div class="alert alert-light border py-2 mb-0">
+                                            <small><strong>Default:</strong> 500, 750, 1000, 1250, 1500, 2000, 2500, 3000, 5000, 10000, 25000</small>
+                                        </div>
+                                    @elseif($key === 'short_rental')
+                                        <div class="alert alert-light border py-2 mb-0">
+                                            <small><strong>Default:</strong> 250, 350, 500, 750, 1000, 1250, 1500, 2000, 2500, 3000, 5000, 10000, 25000</small>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
                         </div>
                     </div>
                 </div>
@@ -474,12 +764,6 @@
                             html += '<i class="bi bi-circle-fill small text-danger"></i>';
                             html += '<span class="small">CRM API: ' + (data.api_detail || 'Failed') + '</span>';
                         }
-                        html += '</div>';
-
-                        // Widget loaded on site
-                        html += '<div class="d-flex align-items-center gap-2">';
-                        html += '<i class="bi bi-circle-fill small text-' + (data.widget ? 'success' : (data.widget === null ? 'secondary' : 'danger')) + '"></i>';
-                        html += '<span class="small">' + (data.widget ? 'Widget: Installed' : (data.widget === null ? 'Widget: Could not reach site' : 'Widget: Not detected')) + '</span>';
                         html += '</div>';
 
                         statusEl.innerHTML = html;

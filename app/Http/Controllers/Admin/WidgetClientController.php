@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Client;
+use App\Models\ClientCustomLocationGroup;
+use App\Models\ClientDisplayPreference;
 use App\Models\LicenseKey;
 use App\Models\Plan;
 use App\Services\WidgetSubscriptionService;
@@ -66,6 +68,16 @@ class WidgetClientController extends Controller
             'billing_cycle'       => 'nullable|in:monthly,yearly',
             'billing_source'      => 'nullable|in:paddle,manual,internal',
             'subscription_status' => 'nullable|in:active,grace,expired,manual,internal',
+            // Resales Online API credentials
+            'resales_client_id'   => 'nullable|string|max:50',
+            'resales_api_key'     => 'nullable|string|max:255',
+            'resales_filter_id'   => 'nullable|string|max:10',
+            'resales_agency_code' => 'nullable|string|max:10',
+            'resales_settings'    => 'nullable|array',
+            'resales_settings.*.enabled'    => 'nullable|boolean',
+            'resales_settings.*.filter_id'  => 'nullable|string|max:10',
+            'resales_settings.*.own_filter' => 'nullable|string|max:10',
+            'resales_settings.*.min_price'  => 'nullable|integer|min:0',
             // Widget config fields
             'wc_baseCurrency'          => 'nullable|string|max:5',
             'wc_availableCurrencies'   => 'nullable|array',
@@ -113,13 +125,49 @@ class WidgetClientController extends Controller
             if (is_array($extra)) {
                 $widgetConfig['_extra'] = $extra;
                 // Merge extra keys into top level (except reserved keys)
-                $reserved = ['enableMapView', 'enableAISearch', 'enableCurrencyConverter', 'baseCurrency', 'availableCurrencies', 'branding', '_extra'];
+                $reserved = ['enableMapView', 'enableAISearch', 'enableCurrencyConverter', 'baseCurrency', 'availableCurrencies', 'branding', '_extra', 'priceRanges'];
                 foreach ($extra as $k => $v) {
                     if (!in_array($k, $reserved)) {
                         $widgetConfig[$k] = $v;
                     }
                 }
             }
+        }
+
+        // Parse custom price ranges from form (comma-separated values)
+        $priceRanges = [];
+        if ($request->has('widget_price_ranges')) {
+            foreach ($request->input('widget_price_ranges', []) as $listingType => $ranges) {
+                $priceRanges[$listingType] = [];
+
+                if (!empty($ranges['min']) && is_string($ranges['min'])) {
+                    $minValues = array_map('intval',
+                        array_filter(array_map('trim', explode(',', $ranges['min'])), fn($v) => is_numeric(trim($v))));
+                    if (!empty($minValues)) {
+                        $priceRanges[$listingType]['min'] = array_values(array_unique($minValues));
+                        sort($priceRanges[$listingType]['min']);
+                    }
+                }
+
+                if (!empty($ranges['max']) && is_string($ranges['max'])) {
+                    $maxValues = array_map('intval',
+                        array_filter(array_map('trim', explode(',', $ranges['max'])), fn($v) => is_numeric(trim($v))));
+                    if (!empty($maxValues)) {
+                        $priceRanges[$listingType]['max'] = array_values(array_unique($maxValues));
+                        sort($priceRanges[$listingType]['max']);
+                    }
+                }
+
+                // Remove empty entries
+                if (empty($priceRanges[$listingType]['min']) && empty($priceRanges[$listingType]['max'])) {
+                    unset($priceRanges[$listingType]);
+                }
+            }
+        }
+
+        // Add price ranges to widget config if any are set
+        if (!empty($priceRanges)) {
+            $widgetConfig['priceRanges'] = $priceRanges;
         }
 
         // Auto-calculate grace period (expiry + 7 days) if expiry is set
@@ -129,16 +177,32 @@ class WidgetClientController extends Controller
             $graceEndsAt = $expiryDate->copy()->addDays(config('smartmailer.widget.grace_period_days', 7));
         }
 
+        // Process resales_settings - convert checkbox values to boolean
+        $resalesSettings = [];
+        if ($request->has('resales_settings')) {
+            foreach ($request->input('resales_settings', []) as $key => $settings) {
+                $resalesSettings[$key] = [
+                    'enabled'    => isset($settings['enabled']),
+                    'filter_id'  => $settings['filter_id'] ?? '1',
+                    'own_filter' => $settings['own_filter'] ?? null,
+                    'min_price'  => (int) ($settings['min_price'] ?? 0),
+                ];
+            }
+        }
+
         $client->update(array_merge(
             $request->only([
                 'company_name', 'domain', 'api_url', 'api_key', 'owner_email', 'default_language',
                 'site_name', 'plan_id', 'billing_cycle', 'billing_source', 'subscription_status',
                 'subscription_expires_at',
+                // Resales Online credentials
+                'resales_client_id', 'resales_api_key', 'resales_filter_id', 'resales_agency_code',
             ]),
             [
                 'grace_ends_at'     => $graceEndsAt,
                 'widget_features'   => $request->input('widget_features', []),
                 'widget_config'     => $widgetConfig,
+                'resales_settings'  => $resalesSettings,
                 'ai_search_enabled' => $request->boolean('ai_search_enabled'),
                 'widget_enabled'    => $request->boolean('widget_enabled'),
                 'admin_override'    => $request->boolean('admin_override'),
@@ -300,24 +364,96 @@ class WidgetClientController extends Controller
             $result['api'] = false;
         }
 
-        // 3. Check if widget is installed on the client site
-        if ($domain) {
-            try {
-                $siteResponse = Http::withoutVerifying()
-                    ->withHeaders(['User-Agent' => 'SmartPropertyWidget/1.0'])
-                    ->timeout(10)
-                    ->get("https://{$domain}");
+        return response()->json($result);
+    }
 
-                if ($siteResponse->successful()) {
-                    $body = $siteResponse->body();
-                    $result['widget'] = str_contains($body, 'realtysoft-loader') || str_contains($body, 'RealtySoftConfig');
-                }
-            } catch (\Exception $e) {
-                $result['widget'] = null;
-            }
+    public function testResales(Client $client)
+    {
+        if (!$client->resales_client_id || !$client->resales_api_key) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Resales credentials not configured. Save the form first.',
+            ]);
         }
 
-        return response()->json($result);
+        try {
+            // Test the LocationsTypes endpoint (lightweight, returns locations + property types)
+            $url = 'https://webapi.resales-online.com/V6/LocationsTypes?' . http_build_query([
+                'p1' => $client->resales_client_id,
+                'p2' => $client->resales_api_key,
+                'p_agency_filterid' => $client->resales_filter_id ?? '1',
+            ]);
+
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'User-Agent' => 'SmartPropertyWidget/1.0',
+                    'Accept' => 'application/json',
+                ])
+                ->timeout(15)
+                ->get($url);
+
+            if ($response->successful()) {
+                // Safely parse JSON response
+                $body = $response->body();
+                $data = json_decode($body, true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'API returned invalid JSON. Response may be XML or HTML.',
+                    ]);
+                }
+
+                // Check if we got locations data
+                $locationCount = isset($data['LocationData']['Location'])
+                    ? (is_array($data['LocationData']['Location']) ? count($data['LocationData']['Location']) : 0)
+                    : 0;
+                $typeCount = isset($data['PropertyTypes']['PropertyType'])
+                    ? (is_array($data['PropertyTypes']['PropertyType']) ? count($data['PropertyTypes']['PropertyType']) : 0)
+                    : 0;
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Connected! Found {$locationCount} locations and {$typeCount} property types.",
+                ]);
+            }
+
+            // Check for specific error responses
+            $body = $response->body();
+            if (str_contains($body, 'IP') || str_contains($body, 'blocked') || str_contains($body, 'whitelist')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'IP not whitelisted. Add server IP to Resales API key settings.',
+                ]);
+            }
+
+            if (str_contains($body, 'Authentication') || str_contains($body, 'Invalid') || str_contains($body, 'credentials')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid credentials. Check Client ID and API Key.',
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'API returned HTTP ' . $response->status() . '. Check credentials.',
+            ]);
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection timeout. The Resales API may be slow or unreachable.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Resales test connection failed', [
+                'client_id' => $client->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     public function subscriptionStatus()
@@ -345,5 +481,367 @@ class WidgetClientController extends Controller
         return view('admin.widget-clients.subscription-status', compact(
             'counts', 'graceClients', 'recentlyExpired'
         ));
+    }
+
+    /**
+     * Show display preferences management page for locations, types, or features.
+     */
+    public function displayPreferences(Request $request, Client $client)
+    {
+        $type = $request->get('type', 'location');
+        if (!in_array($type, ['location', 'property_type', 'feature'])) {
+            $type = 'location';
+        }
+
+        // Get existing preferences for this client and type
+        $preferences = ClientDisplayPreference::where('client_id', $client->id)
+            ->where('item_type', $type)
+            ->orderBy('sort_order')
+            ->get()
+            ->keyBy('item_id');
+
+        // Fetch available items from the microservice
+        $items = $this->fetchItemsFromMicroservice($client, $type);
+
+        // For locations, include custom groups if feature is enabled
+        $customGroups = collect();
+        if ($type === 'location' && $client->custom_location_grouping_enabled) {
+            $customGroups = ClientCustomLocationGroup::where('client_id', $client->id)
+                ->whereNull('parent_group_id')
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(function ($group) use ($preferences) {
+                    $itemId = 'custom_group_' . $group->id;
+                    $pref = $preferences->get($itemId);
+
+                    // If group has parent_feed_location_id, nest it under that location
+                    $parentId = $group->parent_feed_location_id ?: false;
+
+                    return [
+                        'id'           => $itemId,
+                        'name'         => $group->name,
+                        'parent_id'    => $parentId,
+                        'type'         => 'custom_group',
+                        'is_custom'    => true,
+                        'visible'      => $pref ? $pref->visible : true,
+                        'sort_order'   => $pref ? $pref->sort_order : -1, // Default to top within parent
+                        'custom_name'  => $pref ? $pref->custom_name : null,
+                        'has_pref'     => (bool) $pref,
+                        'mapped_count' => $group->mappings()->count(),
+                        'parent_feed_location_name' => $group->parent_feed_location_name,
+                    ];
+                });
+        }
+
+        // Merge preferences with items
+        $mergedItems = collect($items)->map(function ($item, $index) use ($preferences) {
+            $itemId = (string) $item['id'];
+            $pref = $preferences->get($itemId);
+
+            return [
+                'id'          => $itemId,
+                'name'        => $item['name'],
+                'parent_id'   => $item['parent_id'] ?? false,
+                'type'        => $item['type'] ?? 'city',  // area, municipality, or city
+                'is_custom'   => false,
+                'visible'     => $pref ? $pref->visible : true,
+                'sort_order'  => $pref ? $pref->sort_order : $index,
+                'custom_name' => $pref ? $pref->custom_name : null,
+                'has_pref'    => (bool) $pref,
+            ];
+        });
+
+        // Add custom groups to the items collection (for locations only)
+        if ($customGroups->isNotEmpty()) {
+            $mergedItems = $customGroups->concat($mergedItems);
+        }
+
+        // Group by parent_id and sort within each group
+        $grouped = $mergedItems->groupBy(fn($item) => $item['parent_id'] === false ? 'root' : $item['parent_id']);
+
+        // Sort each group by sort_order, then by name
+        $grouped = $grouped->map(function ($group) {
+            return $group->sortBy([
+                ['sort_order', 'asc'],
+                ['name', 'asc'],
+            ])->values();
+        });
+
+        // Rebuild flat list maintaining tree structure
+        $sortedItems = collect();
+        $addChildren = function ($parentId) use (&$addChildren, &$sortedItems, $grouped) {
+            $children = $grouped->get($parentId === false ? 'root' : (string) $parentId, collect());
+            foreach ($children as $child) {
+                $sortedItems->push($child);
+                $addChildren($child['id']);
+            }
+        };
+        $addChildren(false);
+
+        $mergedItems = $sortedItems;
+
+        $typeLabels = [
+            'location'      => 'Locations',
+            'property_type' => 'Property Types',
+            'feature'       => 'Features',
+        ];
+
+        return view('admin.widget-clients.display-preferences', [
+            'client'    => $client,
+            'type'      => $type,
+            'typeLabel' => $typeLabels[$type],
+            'items'     => $mergedItems,
+        ]);
+    }
+
+    /**
+     * Save display preferences for a client.
+     */
+    public function saveDisplayPreferences(Request $request, Client $client)
+    {
+        $type = $request->input('type');
+        if (!in_array($type, ['location', 'property_type', 'feature'])) {
+            return back()->with('error', 'Invalid item type.');
+        }
+
+        $items = $request->input('items', []);
+
+        foreach ($items as $itemId => $data) {
+            ClientDisplayPreference::updateOrCreate(
+                [
+                    'client_id' => $client->id,
+                    'item_type' => $type,
+                    'item_id'   => $itemId,
+                ],
+                [
+                    'item_name'   => $data['name'] ?? null,
+                    'visible'     => ($data['visible'] ?? '0') === '1' || $data['visible'] === true,
+                    'sort_order'  => (int) ($data['sort_order'] ?? 0),
+                    'custom_name' => $data['custom_name'] ?? null,
+                ]
+            );
+        }
+
+        AuditLog::log('widget_client.display_preferences_updated', 'client', $client->id, [
+            'type'  => $type,
+            'count' => count($items),
+        ]);
+
+        return back()->with('success', ucfirst(str_replace('_', ' ', $type)) . ' preferences saved successfully.');
+    }
+
+    /**
+     * Move a display preference item up or down within its parent group.
+     */
+    public function movePreference(Request $request, Client $client)
+    {
+        $request->validate([
+            'type'      => 'required|in:location,property_type,feature',
+            'item_id'   => 'required|string',
+            'direction' => 'required|in:up,down',
+        ]);
+
+        $type = $request->input('type');
+        $itemId = $request->input('item_id');
+        $direction = $request->input('direction');
+
+        // Fetch all items to understand the hierarchy
+        $items = collect($this->fetchItemsFromMicroservice($client, $type));
+        $currentItem = $items->firstWhere('id', $itemId);
+
+        if (!$currentItem) {
+            return response()->json(['success' => false, 'message' => 'Item not found']);
+        }
+
+        // Get siblings (items with same parent_id)
+        $parentId = $currentItem['parent_id'] ?? false;
+        $siblings = $items->filter(fn($item) => ($item['parent_id'] ?? false) === $parentId)->values();
+
+        // Get current preferences for these siblings
+        $preferences = ClientDisplayPreference::where('client_id', $client->id)
+            ->where('item_type', $type)
+            ->whereIn('item_id', $siblings->pluck('id'))
+            ->get()
+            ->keyBy('item_id');
+
+        // Build sorted list with sort_order
+        $sortedSiblings = $siblings->map(function ($item, $index) use ($preferences) {
+            $pref = $preferences->get((string) $item['id']);
+            return [
+                'id'         => (string) $item['id'],
+                'name'       => $item['name'],
+                'sort_order' => $pref ? $pref->sort_order : $index,
+            ];
+        })->sortBy('sort_order')->values();
+
+        // Find current position
+        $currentIndex = $sortedSiblings->search(fn($item) => $item['id'] === (string) $itemId);
+
+        if ($currentIndex === false) {
+            return response()->json(['success' => false, 'message' => 'Item not found in siblings']);
+        }
+
+        // Calculate new index
+        $newIndex = $direction === 'up' ? $currentIndex - 1 : $currentIndex + 1;
+
+        // Check bounds
+        if ($newIndex < 0 || $newIndex >= $sortedSiblings->count()) {
+            return response()->json(['success' => false, 'message' => 'Cannot move further']);
+        }
+
+        // Get the sibling to swap with
+        $swapWith = $sortedSiblings[$newIndex];
+
+        // Swap sort_order values
+        $currentSortOrder = $sortedSiblings[$currentIndex]['sort_order'];
+        $swapSortOrder = $swapWith['sort_order'];
+
+        // If they have the same sort_order, use indexes
+        if ($currentSortOrder === $swapSortOrder) {
+            $currentSortOrder = $currentIndex;
+            $swapSortOrder = $newIndex;
+        }
+
+        // Update current item
+        ClientDisplayPreference::updateOrCreate(
+            ['client_id' => $client->id, 'item_type' => $type, 'item_id' => $itemId],
+            ['sort_order' => $swapSortOrder, 'item_name' => $currentItem['name']]
+        );
+
+        // Update swap item
+        ClientDisplayPreference::updateOrCreate(
+            ['client_id' => $client->id, 'item_type' => $type, 'item_id' => $swapWith['id']],
+            ['sort_order' => $currentSortOrder, 'item_name' => $swapWith['name']]
+        );
+
+        return response()->json([
+            'success'      => true,
+            'swapped_with' => $swapWith['id'],
+        ]);
+    }
+
+    /**
+     * Fetch items (locations, types, or features) from the appropriate API.
+     * Supports: Resales (spw-transform), CRM (direct), and Odoo (inmotechplugin).
+     */
+    protected function fetchItemsFromMicroservice(Client $client, string $type): array
+    {
+        // Primary and fallback endpoints for different API types
+        $endpoints = [
+            'location'      => ['/v2/location', '/v1/location', '/v1/locations'],
+            'property_type' => ['/v1/property_types', '/v1/property-types'],
+            'feature'       => ['/v1/property_features', '/v1/property-features', '/v1/features'],
+        ];
+
+        $endpointList = $endpoints[$type] ?? null;
+        if (!$endpointList) {
+            return [];
+        }
+
+        try {
+            // Determine which API to use based on client configuration
+            $apiUrl = null;
+            $headers = ['Accept' => 'application/json'];
+
+            if ($client->resales_client_id && $client->resales_api_key) {
+                // Resales clients: use spw-transform
+                $apiUrl = 'https://api.smartpropertywidget.com';
+                $queryParam = '?_domain=' . urlencode($client->domain);
+            } elseif ($client->api_url && $client->api_key) {
+                // CRM/Odoo clients: use their configured API
+                $apiUrl = rtrim($client->api_url, '/');
+                $headers['access_token'] = $client->api_key;
+                $queryParam = '';
+            } else {
+                // No API configured
+                \Log::info("No API configured for client {$client->domain}");
+                return [];
+            }
+
+            $response = null;
+            $lastUrl = '';
+
+            // Try each endpoint until one succeeds
+            foreach ($endpointList as $endpoint) {
+                $url = $apiUrl . $endpoint . $queryParam;
+                $lastUrl = $url;
+
+                \Log::info("Fetching {$type} for {$client->domain}: {$url}");
+
+                $response = Http::withoutVerifying()
+                    ->timeout(15)
+                    ->withHeaders($headers)
+                    ->get($url);
+
+                if ($response->successful()) {
+                    \Log::info("Success fetching {$type} from {$endpoint}");
+                    break;
+                }
+
+                \Log::info("Failed {$endpoint} with HTTP {$response->status()}, trying next...");
+            }
+
+            if ($response && $response->successful()) {
+                $data = $response->json();
+
+                \Log::info("Response for {$type}: " . json_encode(array_keys($data ?? [])));
+
+                // Handle different response formats
+                $items = [];
+
+                // Check for 'data' wrapper
+                if (isset($data['data']) && is_array($data['data'])) {
+                    $items = $data['data'];
+                }
+                // Check if response is already an array of items
+                elseif (is_array($data) && !empty($data) && isset($data[0])) {
+                    $items = $data;
+                }
+                // Some APIs return {'count': X, 'data': [...]}
+                elseif (isset($data['count']) && isset($data['data'])) {
+                    $items = $data['data'];
+                }
+
+                // Handle features which have nested structure (groups with value_ids)
+                if ($type === 'feature' && !empty($items)) {
+                    // Check if first item has value_ids (grouped format)
+                    if (isset($items[0]['value_ids']) || isset($items[0]['values'])) {
+                        $flatFeatures = [];
+                        foreach ($items as $group) {
+                            // Add group itself
+                            $flatFeatures[] = [
+                                'id'        => 'group_' . $group['id'],
+                                'name'      => ($group['name'] ?? 'Group') . ' (Category)',
+                                'parent_id' => false,
+                            ];
+                            // Add values within group (try both 'value_ids' and 'values')
+                            $values = $group['value_ids'] ?? $group['values'] ?? [];
+                            foreach ($values as $value) {
+                                $flatFeatures[] = [
+                                    'id'        => $value['id'],
+                                    'name'      => $value['name'],
+                                    'parent_id' => 'group_' . $group['id'],
+                                ];
+                            }
+                        }
+                        return $flatFeatures;
+                    }
+                    // Already flat format
+                    return $items;
+                }
+
+                \Log::info("Returning " . count($items) . " items for {$type}");
+                return $items;
+            }
+
+            \Log::warning("All endpoints failed for {$type}, client {$client->domain}");
+
+        } catch (\Exception $e) {
+            // Log error but don't fail
+            \Log::warning("Failed to fetch {$type} from API for client {$client->domain}: " . $e->getMessage());
+        }
+
+        return [];
     }
 }

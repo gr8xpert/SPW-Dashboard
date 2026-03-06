@@ -38,12 +38,13 @@ class WebmasterController extends Controller
         $adminClient = auth()->user()->client;
 
         $user = User::create([
-            'client_id' => $adminClient->id,
-            'name'      => $request->name,
-            'email'     => $request->email,
-            'password'  => Hash::make($request->password),
-            'role'      => 'webmaster',
-            'status'    => 'active',
+            'client_id'         => $adminClient->id,
+            'name'              => $request->name,
+            'email'             => $request->email,
+            'password'          => Hash::make($request->password),
+            'role'              => 'webmaster',
+            'status'            => 'active',
+            'email_verified_at' => now(), // Auto-verify for admin-created users
         ]);
 
         AuditLog::log('webmaster.created', 'user', $user->id);

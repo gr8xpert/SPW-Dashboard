@@ -21,6 +21,32 @@ class DashboardController extends Controller
             'total_users'     => User::withoutGlobalScope(\App\Scopes\TenantScope::class)->count(),
         ];
 
+        // Widget-specific stats
+        $stats['widget_clients'] = Client::whereNotNull('domain')->count();
+        $stats['widget_active'] = Client::whereNotNull('domain')
+            ->whereIn('subscription_status', ['active', 'manual', 'internal'])
+            ->orWhere('admin_override', true)
+            ->count();
+        $stats['widget_grace'] = Client::whereNotNull('domain')
+            ->where('subscription_status', 'grace')
+            ->count();
+        $stats['widget_expired'] = Client::whereNotNull('domain')
+            ->where('subscription_status', 'expired')
+            ->count();
+
+        // Clients expiring in next 7 days
+        $stats['expiring_soon'] = Client::whereNotNull('domain')
+            ->whereNotNull('subscription_expires_at')
+            ->where('subscription_expires_at', '<=', now()->addDays(7))
+            ->where('subscription_expires_at', '>', now())
+            ->where('admin_override', false)
+            ->count();
+
+        // Clients with Resales API configured
+        $stats['resales_configured'] = Client::whereNotNull('resales_client_id')
+            ->whereNotNull('resales_api_key')
+            ->count();
+
         $month = now()->format('Y-m');
         $stats['emails_this_month'] = ClientUsage::where('month', $month)->sum('emails_sent');
 

@@ -48,12 +48,12 @@
                     <thead class="table-dark">
                         <tr>
                             <th>ID</th>
-                            <th>Domain</th>
+                            <th>Client</th>
+                            <th>API</th>
                             <th>Plan</th>
-                            <th>Subscription Status</th>
-                            <th>Override</th>
-                            <th>Expires At</th>
-                            <th>Actions</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -61,7 +61,25 @@
                             <tr>
                                 <td>{{ $client->id }}</td>
                                 <td>
-                                    <a href="{{ $client->domain }}" target="_blank" rel="noopener">{{ $client->domain }}</a>
+                                    <div class="fw-semibold">{{ $client->company_name ?: 'Unnamed' }}</div>
+                                    <a href="https://{{ $client->domain }}" target="_blank" rel="noopener" class="text-muted small">
+                                        {{ $client->domain }} <i class="bi bi-box-arrow-up-right" style="font-size: 0.7em;"></i>
+                                    </a>
+                                </td>
+                                <td>
+                                    @if($client->resales_client_id && $client->resales_api_key)
+                                        <span class="badge bg-success" title="Resales API configured">
+                                            <i class="bi bi-plug-fill"></i>
+                                        </span>
+                                    @elseif($client->api_url && $client->api_key)
+                                        <span class="badge bg-info" title="Legacy API configured">
+                                            <i class="bi bi-plug"></i>
+                                        </span>
+                                    @else
+                                        <span class="badge bg-light text-muted" title="No API configured">
+                                            <i class="bi bi-x"></i>
+                                        </span>
+                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge bg-info text-dark">{{ ucfirst($client->plan?->name ?? 'N/A') }}</span>
@@ -72,7 +90,9 @@
                                             <span class="badge bg-success">Active</span>
                                             @break
                                         @case('grace')
-                                            <span class="badge bg-warning text-dark">Grace Period</span>
+                                            <span class="badge bg-warning text-dark">
+                                                Grace <small>({{ $client->getGraceDaysRemaining() }}d)</small>
+                                            </span>
                                             @break
                                         @case('expired')
                                             <span class="badge bg-danger">Expired</span>
@@ -86,21 +106,70 @@
                                         @default
                                             <span class="badge bg-light text-dark">{{ $client->subscription_status }}</span>
                                     @endswitch
-                                </td>
-                                <td>
                                     @if($client->admin_override)
-                                        <span class="badge bg-info">
-                                            <i class="bi bi-shield-check"></i> Admin Override
+                                        <span class="badge bg-info" title="Admin Override">
+                                            <i class="bi bi-shield-check"></i>
                                         </span>
-                                    @else
-                                        <span class="text-muted">&mdash;</span>
                                     @endif
                                 </td>
-                                <td>{{ $client->subscription_expires_at ? $client->subscription_expires_at->format('M d, Y') : '—' }}</td>
                                 <td>
-                                    <a href="{{ route('admin.widget-clients.edit', $client) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-pencil"></i> Edit
-                                    </a>
+                                    @if($client->subscription_expires_at)
+                                        @if($client->subscription_expires_at->isPast())
+                                            <span class="text-danger">{{ $client->subscription_expires_at->format('M d, Y') }}</span>
+                                        @elseif($client->subscription_expires_at->diffInDays(now()) <= 7)
+                                            <span class="text-warning">{{ $client->subscription_expires_at->format('M d, Y') }}</span>
+                                        @else
+                                            {{ $client->subscription_expires_at->format('M d, Y') }}
+                                        @endif
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ route('admin.widget-clients.edit', $client) }}" class="btn btn-outline-primary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="visually-hidden">Toggle Dropdown</span>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <form method="POST" action="{{ route('admin.widget-clients.toggle-override', $client) }}" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="bi bi-shield-{{ $client->admin_override ? 'x' : 'check' }} me-2"></i>
+                                                        {{ $client->admin_override ? 'Disable Override' : 'Enable Override' }}
+                                                    </button>
+                                                </form>
+                                            </li>
+                                            <li>
+                                                <form method="POST" action="{{ route('admin.widget-clients.extend', $client) }}" class="d-inline">
+                                                    @csrf
+                                                    <input type="hidden" name="period" value="1 month">
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="bi bi-calendar-plus me-2"></i>Extend 1 Month
+                                                    </button>
+                                                </form>
+                                            </li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a href="{{ route('admin.widget-clients.location-grouping.index', $client) }}" class="dropdown-item">
+                                                    <i class="bi bi-geo-alt me-2"></i>Location Grouping
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="{{ route('admin.widget-clients.property-type-grouping.index', $client) }}" class="dropdown-item">
+                                                    <i class="bi bi-house me-2"></i>Property Type Grouping
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="{{ route('admin.widget-clients.feature-grouping.index', $client) }}" class="dropdown-item">
+                                                    <i class="bi bi-check2-square me-2"></i>Feature Grouping
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         @empty

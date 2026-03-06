@@ -72,11 +72,13 @@ class ClientController extends Controller
 
             // Create an admin user for this client
             User::create([
-                'name'      => $request->company_name . ' Admin',
-                'email'     => $request->owner_email,
-                'password'  => Hash::make($request->admin_password),
-                'client_id' => $client->id,
-                'role'      => 'admin',
+                'name'              => $request->company_name . ' Admin',
+                'email'             => $request->owner_email,
+                'password'          => Hash::make($request->admin_password),
+                'client_id'         => $client->id,
+                'role'              => 'admin',
+                'email_verified_at' => now(), // Auto-verify for admin-created users
+                'status'            => 'active',
             ]);
 
             // Auto-generate a license key
@@ -151,5 +153,34 @@ class ClientController extends Controller
             $request->session()->forget(['impersonating_as', 'impersonator_id']);
         }
         return redirect()->route('admin.dashboard');
+    }
+
+    public function resetPassword(Client $client, User $user)
+    {
+        // Verify user belongs to this client
+        if ($user->client_id !== $client->id) {
+            return back()->with('error', 'User does not belong to this client.');
+        }
+
+        return view('admin.clients.reset-password', compact('client', 'user'));
+    }
+
+    public function updatePassword(Request $request, Client $client, User $user)
+    {
+        // Verify user belongs to this client
+        if ($user->client_id !== $client->id) {
+            return back()->with('error', 'User does not belong to this client.');
+        }
+
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return redirect()->route('admin.clients.show', $client)
+            ->with('success', "Password updated for {$user->name}.");
     }
 }

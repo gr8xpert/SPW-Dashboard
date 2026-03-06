@@ -15,6 +15,10 @@ class Client extends Model
         'domain', 'api_url', 'site_name', 'widget_features', 'widget_config', 'ai_search_enabled',
         'openrouter_api_key', 'default_language', 'owner_email',
         'widget_enabled', 'admin_override', 'is_internal', 'billing_source',
+        // Resales Online API credentials
+        'resales_client_id', 'resales_api_key', 'resales_filter_id', 'resales_agency_code',
+        'resales_settings', 'enabled_languages', 'custom_location_grouping_enabled',
+        'custom_property_type_grouping_enabled', 'custom_feature_grouping_enabled',
         // Paddle billing
         'paddle_subscription_id', 'paddle_customer_id', 'paddle_platform_customer_id',
         'subscription_status', 'grace_ends_at', 'subscription_expires_at',
@@ -35,6 +39,12 @@ class Client extends Model
         'credit_balance'         => 'decimal:2',
         'credit_rate'            => 'decimal:2',
         'openrouter_api_key'     => 'encrypted',
+        'resales_api_key'        => 'encrypted',
+        'resales_settings'       => 'array',
+        'enabled_languages'      => 'array',
+        'custom_location_grouping_enabled' => 'boolean',
+        'custom_property_type_grouping_enabled' => 'boolean',
+        'custom_feature_grouping_enabled' => 'boolean',
     ];
 
     protected static function booted(): void
@@ -91,6 +101,26 @@ class Client extends Model
     public function creditTransactions()
     {
         return $this->hasMany(CreditTransaction::class);
+    }
+
+    public function labelOverrides()
+    {
+        return $this->hasMany(ClientLabelOverride::class);
+    }
+
+    public function displayPreferences()
+    {
+        return $this->hasMany(ClientDisplayPreference::class);
+    }
+
+    public function customLocationGroups()
+    {
+        return $this->hasMany(ClientCustomLocationGroup::class);
+    }
+
+    public function locationMappings()
+    {
+        return $this->hasMany(ClientLocationMapping::class);
     }
 
     // --- Status checks ---

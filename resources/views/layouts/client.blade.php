@@ -27,6 +27,9 @@
         <a href="{{ route('dashboard.widget.inquiry-contacts') }}" class="nav-link {{ request()->routeIs('dashboard.widget.inquiry-contacts') ? 'active' : '' }}">
             <i class="bi bi-person-lines-fill"></i> Inquiry Contacts
         </a>
+        <a href="{{ route('dashboard.labels.index') }}" class="nav-link {{ request()->routeIs('dashboard.labels.*') ? 'active' : '' }}">
+            <i class="bi bi-translate"></i> Widget Labels
+        </a>
 
         <p class="nav-section">Email Marketing</p>
         <a href="{{ route('dashboard.campaigns.index') }}" class="nav-link {{ request()->routeIs('dashboard.campaigns.*') ? 'active' : '' }}">

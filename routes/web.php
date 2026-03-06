@@ -15,6 +15,10 @@ use App\Http\Controllers\Admin\WebmasterController;
 use App\Http\Controllers\Admin\CreditController as AdminCreditController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\KnowledgeBaseController;
+use App\Http\Controllers\Admin\LabelController as AdminLabelController;
+use App\Http\Controllers\Admin\LocationGroupingController;
+use App\Http\Controllers\Admin\PropertyTypeGroupingController;
+use App\Http\Controllers\Admin\FeatureGroupingController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboard;
 use App\Http\Controllers\Client\ContactController;
 use App\Http\Controllers\Client\ListController;
@@ -33,6 +37,7 @@ use App\Http\Controllers\Client\TicketController as ClientTicketController;
 use App\Http\Controllers\Client\CreditController as ClientCreditController;
 use App\Http\Controllers\Client\OnboardingController;
 use App\Http\Controllers\Client\PrivacyController;
+use App\Http\Controllers\Client\LabelOverrideController;
 use App\Http\Controllers\Webmaster\TicketController as WebmasterTicketController;
 use App\Http\Controllers\Webmaster\TimesheetController;
 use App\Http\Controllers\Api\N8nCallbackController;
@@ -73,7 +78,7 @@ Route::get('/cron-scheduler', function () {
 // Auth
 Route::get('/login',          [LoginController::class, 'show'])->name('login');
 Route::post('/login',         [LoginController::class, 'login'])->name('login.post');
-Route::post('/logout',        [LoginController::class, 'logout'])->name('logout');
+Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])->name('logout');
 Route::get('/register',       [RegisterController::class, 'show'])->name('register');
 Route::post('/register',      [RegisterController::class, 'register'])->name('register.post');
 Route::get('/forgot-password',[ForgotPasswordController::class, 'show'])->name('password.request');
@@ -221,6 +226,8 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::patch('widget/inquiry-contacts/{contact}/status', [WidgetDashboardController::class, 'updateInquiryStatus'])->name('widget.inquiry-contacts.update-status');
     Route::get('widget/download-plugin',  [WidgetDashboardController::class, 'downloadPlugin'])->name('widget.download-plugin');
     Route::put('widget/settings',         [WidgetDashboardController::class, 'updateSettings'])->name('widget.update-settings');
+    Route::get('widget/config',           [WidgetDashboardController::class, 'config'])->name('widget.config');
+    Route::put('widget/config',           [WidgetDashboardController::class, 'saveConfig'])->name('widget.save-config');
 
     // ─── Support Tickets (NEW) ────────────────────────────────────────────
     Route::get('tickets',                  [ClientTicketController::class, 'index'])->name('tickets.index');
@@ -243,6 +250,11 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::get('privacy',            [PrivacyController::class, 'index'])->name('privacy.index');
     Route::get('privacy/export',     [PrivacyController::class, 'export'])->name('privacy.export');
     Route::post('privacy/delete',    [PrivacyController::class, 'requestDeletion'])->name('privacy.delete');
+
+    // ─── Widget Labels (Client Overrides) ────────────────────────────────
+    Route::get('labels',         [LabelOverrideController::class, 'index'])->name('labels.index');
+    Route::post('labels/update', [LabelOverrideController::class, 'update'])->name('labels.update');
+    Route::post('labels/reset',  [LabelOverrideController::class, 'reset'])->name('labels.reset');
 
     // ─── Knowledge Base (Client View) ─────────────────────────────────────
     Route::get('help', function () {
@@ -282,6 +294,8 @@ Route::middleware(['auth', 'role:super_admin'])
     Route::post('clients/{client}/activate',    [AdminClientController::class, 'activate'])->name('clients.activate');
     Route::post('clients/{client}/impersonate', [AdminClientController::class, 'impersonate'])->name('clients.impersonate');
     Route::get('stop-impersonating',            [AdminClientController::class, 'stopImpersonating'])->name('stop-impersonating');
+    Route::get('clients/{client}/users/{user}/reset-password',  [AdminClientController::class, 'resetPassword'])->name('clients.reset-password');
+    Route::post('clients/{client}/users/{user}/update-password', [AdminClientController::class, 'updatePassword'])->name('clients.update-password');
     Route::resource('plans', AdminPlanController::class);
     Route::get('global-suppressions',  [GlobalSuppressionController::class, 'index'])->name('suppressions.index');
     Route::post('global-suppressions', [GlobalSuppressionController::class, 'store'])->name('suppressions.store');
@@ -301,6 +315,42 @@ Route::middleware(['auth', 'role:super_admin'])
     Route::post('widget-clients/{client}/revoke-license',      [WidgetClientController::class, 'revokeLicense'])->name('widget-clients.revoke-license');
     Route::post('widget-clients/{client}/regenerate-license',  [WidgetClientController::class, 'regenerateLicense'])->name('widget-clients.regenerate-license');
     Route::get('widget-clients/{client}/check-connection',     [WidgetClientController::class, 'checkConnection'])->name('widget-clients.check-connection');
+    Route::get('widget-clients/{client}/test-resales',         [WidgetClientController::class, 'testResales'])->name('widget-clients.test-resales');
+    Route::get('widget-clients/{client}/display-preferences',  [WidgetClientController::class, 'displayPreferences'])->name('widget-clients.display-preferences');
+    Route::post('widget-clients/{client}/display-preferences', [WidgetClientController::class, 'saveDisplayPreferences'])->name('widget-clients.save-display-preferences');
+    Route::post('widget-clients/{client}/move-preference',     [WidgetClientController::class, 'movePreference'])->name('widget-clients.move-preference');
+
+    // ─── Location Grouping ───────────────────────────────────────────────
+    Route::get('widget-clients/{client}/location-grouping',                       [LocationGroupingController::class, 'index'])->name('widget-clients.location-grouping.index');
+    Route::post('widget-clients/{client}/location-grouping/toggle',               [LocationGroupingController::class, 'toggleFeature'])->name('widget-clients.location-grouping.toggle');
+    Route::post('widget-clients/{client}/location-grouping/groups',               [LocationGroupingController::class, 'storeGroup'])->name('widget-clients.location-grouping.groups.store');
+    Route::put('widget-clients/{client}/location-grouping/groups/{group}',        [LocationGroupingController::class, 'updateGroup'])->name('widget-clients.location-grouping.groups.update');
+    Route::delete('widget-clients/{client}/location-grouping/groups/{group}',     [LocationGroupingController::class, 'destroyGroup'])->name('widget-clients.location-grouping.groups.destroy');
+    Route::post('widget-clients/{client}/location-grouping/groups/reorder',       [LocationGroupingController::class, 'reorderGroups'])->name('widget-clients.location-grouping.groups.reorder');
+    Route::post('widget-clients/{client}/location-grouping/groups/{group}/map',   [LocationGroupingController::class, 'mapLocations'])->name('widget-clients.location-grouping.groups.map');
+    Route::delete('widget-clients/{client}/location-grouping/mappings/{mapping}', [LocationGroupingController::class, 'unmapLocation'])->name('widget-clients.location-grouping.mappings.destroy');
+    Route::post('widget-clients/{client}/location-grouping/groups/{group}/reorder-mappings', [LocationGroupingController::class, 'reorderMappings'])->name('widget-clients.location-grouping.mappings.reorder');
+    Route::get('widget-clients/{client}/location-grouping/unmapped',              [LocationGroupingController::class, 'getUnmapped'])->name('widget-clients.location-grouping.unmapped');
+
+    // ─── Property Type Grouping ──────────────────────────────────────────
+    Route::get('widget-clients/{client}/property-type-grouping',                       [PropertyTypeGroupingController::class, 'index'])->name('widget-clients.property-type-grouping.index');
+    Route::post('widget-clients/{client}/property-type-grouping/toggle',               [PropertyTypeGroupingController::class, 'toggleFeature'])->name('widget-clients.property-type-grouping.toggle');
+    Route::post('widget-clients/{client}/property-type-grouping/groups',               [PropertyTypeGroupingController::class, 'storeGroup'])->name('widget-clients.property-type-grouping.groups.store');
+    Route::put('widget-clients/{client}/property-type-grouping/groups/{group}',        [PropertyTypeGroupingController::class, 'updateGroup'])->name('widget-clients.property-type-grouping.groups.update');
+    Route::delete('widget-clients/{client}/property-type-grouping/groups/{group}',     [PropertyTypeGroupingController::class, 'destroyGroup'])->name('widget-clients.property-type-grouping.groups.destroy');
+    Route::post('widget-clients/{client}/property-type-grouping/groups/{group}/map',   [PropertyTypeGroupingController::class, 'mapTypes'])->name('widget-clients.property-type-grouping.groups.map');
+    Route::delete('widget-clients/{client}/property-type-grouping/mappings/{mapping}', [PropertyTypeGroupingController::class, 'unmapType'])->name('widget-clients.property-type-grouping.mappings.destroy');
+    Route::get('widget-clients/{client}/property-type-grouping/unmapped',              [PropertyTypeGroupingController::class, 'getUnmapped'])->name('widget-clients.property-type-grouping.unmapped');
+
+    // ─── Feature Grouping ────────────────────────────────────────────────
+    Route::get('widget-clients/{client}/feature-grouping',                       [FeatureGroupingController::class, 'index'])->name('widget-clients.feature-grouping.index');
+    Route::post('widget-clients/{client}/feature-grouping/toggle',               [FeatureGroupingController::class, 'toggleFeature'])->name('widget-clients.feature-grouping.toggle');
+    Route::post('widget-clients/{client}/feature-grouping/groups',               [FeatureGroupingController::class, 'storeGroup'])->name('widget-clients.feature-grouping.groups.store');
+    Route::put('widget-clients/{client}/feature-grouping/groups/{group}',        [FeatureGroupingController::class, 'updateGroup'])->name('widget-clients.feature-grouping.groups.update');
+    Route::delete('widget-clients/{client}/feature-grouping/groups/{group}',     [FeatureGroupingController::class, 'destroyGroup'])->name('widget-clients.feature-grouping.groups.destroy');
+    Route::post('widget-clients/{client}/feature-grouping/groups/{group}/map',   [FeatureGroupingController::class, 'mapFeatures'])->name('widget-clients.feature-grouping.groups.map');
+    Route::delete('widget-clients/{client}/feature-grouping/mappings/{mapping}', [FeatureGroupingController::class, 'unmapFeature'])->name('widget-clients.feature-grouping.mappings.destroy');
+    Route::get('widget-clients/{client}/feature-grouping/unmapped',              [FeatureGroupingController::class, 'getUnmapped'])->name('widget-clients.feature-grouping.unmapped');
 
     // ─── Tickets (NEW) ───────────────────────────────────────────────────
     Route::get('tickets',                          [AdminTicketController::class, 'index'])->name('tickets.index');
@@ -325,4 +375,12 @@ Route::middleware(['auth', 'role:super_admin'])
 
     // ─── Knowledge Base (NEW) ────────────────────────────────────────────
     Route::resource('knowledge-base', KnowledgeBaseController::class)->except(['show']);
+
+    // ─── Widget Labels (NEW) ──────────────────────────────────────────────
+    Route::get('labels',              [AdminLabelController::class, 'index'])->name('labels.index');
+    Route::post('labels',             [AdminLabelController::class, 'store'])->name('labels.store');
+    Route::put('labels/{label}',      [AdminLabelController::class, 'update'])->name('labels.update');
+    Route::delete('labels/{label}',   [AdminLabelController::class, 'destroy'])->name('labels.destroy');
+    Route::post('labels/import',      [AdminLabelController::class, 'import'])->name('labels.import');
+    Route::get('labels/export',       [AdminLabelController::class, 'export'])->name('labels.export');
 });

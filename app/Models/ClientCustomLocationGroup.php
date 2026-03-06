@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
+
+class ClientCustomLocationGroup extends Model
+{
+    protected $fillable = [
+        'client_id',
+        'name',
+        'slug',
+        'parent_group_id',
+        'parent_feed_location_id',
+        'parent_feed_location_name',
+        'sort_order',
+        'is_active',
+        'description',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'sort_order' => 'integer',
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function ($group) {
+            if (empty($group->slug)) {
+                $group->slug = static::generateUniqueSlug($group->client_id, $group->name);
+            }
+        });
+
+        static::updating(function ($group) {
+            if ($group->isDirty('name') && !$group->isDirty('slug')) {
+                $group->slug = static::generateUniqueSlug($group->client_id, $group->name, $group->id);
+            }
+        });
+    }
+
+    public static function generateUniqueSlug(int $clientId, string $name, ?int $excludeId = null): string
+    {
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug;
+        $counter = 1;
+
+        $query = static::where('client_id', $clientId)->where('slug', $slug);
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        while ($query->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+            $query = static::where('client_id', $clientId)->where('slug', $slug);
+            if ($excludeId) {
+                $query->where('id', '!=', $excludeId);
+            }
+        }
+
+        return $slug;
+    }
+
+    // --- Relationships ---
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(static::class, 'parent_group_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(static::class, 'parent_group_id')->orderBy('sort_order');
+    }
+
+    public function mappings(): HasMany
+    {
+        return $this->hasMany(ClientLocationMapping::class, 'custom_group_id')->orderBy('sort_order');
+    }
+
+    // --- Tree Building ---
+
+    public static function buildTree(int $clientId): array
+    {
+        $groups = static::where('client_id', $clientId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->with(['mappings', 'children' => function ($q) {
+                $q->where('is_active', true)->orderBy('sort_order')->with('mappings');
+            }])
+            ->get();
+
+        return static::nestGroups($groups->where('parent_group_id', null)->values());
+    }
+
+    protected static function nestGroups($groups): array
+    {
+        $result = [];
+
+        foreach ($groups as $group) {
+            $item = [
+                'id' => 'custom_group_' . $group->id,
+                'group_id' => $group->id,
+                'name' => $group->name,
+                'slug' => $group->slug,
+                'type' => 'custom_group',
+                'is_custom' => true,
+                'children' => [],
+            ];
+
+            // Add mapped locations
+            foreach ($group->mappings as $mapping) {
+                $item['children'][] = [
+                    'id' => $mapping->feed_location_id,
+                    'name' => $mapping->feed_location_name,
+                    'type' => $mapping->feed_location_type ?? 'location',
+                    'is_custom' => false,
+                ];
+            }
+
+            // Add nested child groups
+            if ($group->children->isNotEmpty()) {
+                $nestedChildren = static::nestGroups($group->children);
+                $item['children'] = array_merge($item['children'], $nestedChildren);
+            }
+
+            $result[] = $item;
+        }
+
+        return $result;
+    }
+
+    public function getAncestorIds(): array
+    {
+        $ids = [];
+        $current = $this->parent;
+
+        while ($current) {
+            $ids[] = $current->id;
+            $current = $current->parent;
+        }
+
+        return $ids;
+    }
+
+    public function isDescendantOf(int $groupId): bool
+    {
+        return in_array($groupId, $this->getAncestorIds());
+    }
+}

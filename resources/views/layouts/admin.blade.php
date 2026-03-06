@@ -40,6 +40,9 @@
         </a>
 
         <p class="nav-section">Content</p>
+        <a href="{{ route('admin.labels.index') }}" class="nav-link {{ request()->routeIs('admin.labels.*') ? 'active' : '' }}">
+            <i class="bi bi-translate"></i> Widget Labels
+        </a>
         <a href="{{ route('admin.knowledge-base.index') }}" class="nav-link {{ request()->routeIs('admin.knowledge-base.*') ? 'active' : '' }}">
             <i class="bi bi-book"></i> Knowledge Base
         </a>

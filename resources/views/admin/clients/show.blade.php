@@ -182,6 +182,7 @@
                             <th>Email</th>
                             <th>Role</th>
                             <th>Joined</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -196,6 +197,12 @@
                                 </td>
                                 <td class="text-muted small">
                                     {{ $user->created_at->format('M d, Y') }}
+                                </td>
+                                <td>
+                                    <a href="{{ route('admin.clients.reset-password', [$client, $user]) }}"
+                                       class="btn btn-sm btn-outline-warning" title="Reset Password">
+                                        <i class="bi bi-key"></i>
+                                    </a>
                                 </td>
                             </tr>
                         @empty

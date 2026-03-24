@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
+use App\Models\Inquiry;
 use App\Services\WidgetAnalyticsService;
 use App\Services\WidgetSubscriptionService;
 use Illuminate\Http\Request;
@@ -29,7 +30,62 @@ class WidgetDashboardController extends Controller
             $subscriptionInfo = $this->subscriptionService->checkSubscription($client->domain);
         }
 
-        return view('client.widget.index', compact('client', 'subscriptionInfo'));
+        // Build plan features list
+        $features = [];
+        if ($client->plan) {
+            $planFeatures = $client->plan->features ?? [];
+
+            // Standard widget features
+            $featureDefinitions = [
+                'widget_included' => 'Property Search Widget',
+                'ai_search_enabled' => 'AI-Powered Search',
+                'multi_language' => 'Multi-Language Support',
+                'custom_branding' => 'Custom Branding',
+                'analytics' => 'Widget Analytics',
+                'inquiry_forms' => 'Inquiry Forms',
+                'wishlist' => 'Wishlist Feature',
+                'currency_converter' => 'Currency Converter',
+                'map_view' => 'Map View',
+                'pdf_downloads' => 'PDF Downloads',
+            ];
+
+            foreach ($featureDefinitions as $key => $name) {
+                // Check plan-level booleans first, then features array
+                $enabled = false;
+                if ($key === 'widget_included') {
+                    $enabled = $client->plan->widget_included ?? false;
+                } elseif ($key === 'ai_search_enabled') {
+                    $enabled = $client->plan->ai_search_enabled ?? false;
+                } else {
+                    $enabled = $planFeatures[$key] ?? false;
+                }
+
+                $features[] = ['name' => $name, 'enabled' => $enabled];
+            }
+        }
+
+        // Fetch quick stats from analytics (last 30 days)
+        $stats = [
+            'searches' => 0,
+            'views' => 0,
+            'inquiries' => 0,
+            'ai_searches' => 0,
+        ];
+
+        if ($client->domain) {
+            $analyticsData = $this->analyticsService->getAllAnalytics($client->domain, '30');
+            if (empty($analyticsData['error'])) {
+                $summary = $analyticsData['summary']['stats'] ?? [];
+                $stats = [
+                    'searches' => $summary['searches'] ?? 0,
+                    'views' => $summary['property_views'] ?? 0,
+                    'inquiries' => $summary['inquiries'] ?? 0,
+                    'ai_searches' => $summary['ai_searches'] ?? 0,
+                ];
+            }
+        }
+
+        return view('client.widget.index', compact('client', 'subscriptionInfo', 'features', 'stats'));
     }
 
     /**
@@ -48,6 +104,7 @@ class WidgetDashboardController extends Controller
                 'topLocations'     => [],
                 'topPropertyTypes' => [],
                 'topProperties'    => [],
+                'allProperties'    => [],
                 'period'           => $period,
                 'apiDown'          => false,
             ]);
@@ -68,6 +125,9 @@ class WidgetDashboardController extends Controller
             'card_clicks'    => $summary['card_clicks'] ?? 0,
             'wishlist_adds'  => $summary['wishlist_adds'] ?? 0,
             'inquiries'      => $totalInquiries,
+            'pdf_downloads'  => $summary['pdf_downloads'] ?? 0,
+            'video_views'    => $summary['video_views'] ?? 0,
+            'tour_views'     => $summary['tour_views'] ?? 0,
             'conversion_rate' => $conversionRate,
             'unique_sessions' => $data['summary']['unique_sessions'] ?? 0,
             'total_events'    => $data['summary']['total_events'] ?? 0,
@@ -82,8 +142,9 @@ class WidgetDashboardController extends Controller
             'inquiries' => $trends['datasets']['inquiries'] ?? [],
         ];
 
-        // Map top properties (limit to 10)
-        $topProperties = array_slice($data['properties']['properties'] ?? [], 0, 10);
+        // Get all properties and top 10
+        $allProperties = $data['properties']['properties'] ?? [];
+        $topProperties = array_slice($allProperties, 0, 10);
 
         // Map search insights
         $searchData = $data['searches'] ?? [];
@@ -109,8 +170,15 @@ class WidgetDashboardController extends Controller
             ->take(10)
             ->all();
 
+        // Debug: ensure allProperties is set
+        $debugInfo = [
+            'allPropertiesCount' => count($allProperties),
+            'topPropertiesCount' => count($topProperties),
+            'domain' => $client->domain,
+        ];
+
         return view('client.widget.analytics', compact(
-            'stats', 'chartData', 'topLocations', 'topPropertyTypes', 'topProperties', 'period', 'apiDown'
+            'stats', 'chartData', 'topLocations', 'topPropertyTypes', 'topProperties', 'allProperties', 'period', 'apiDown', 'debugInfo'
         ));
     }
 
@@ -137,35 +205,39 @@ class WidgetDashboardController extends Controller
     }
 
     /**
-     * Contacts captured from widget inquiries.
+     * Inquiries captured from widget forms.
      */
     public function inquiryContacts(Request $request)
     {
         $client = auth()->user()->client;
 
-        $query = Contact::where('client_id', $client->id)
-            ->where('source', 'widget_inquiry')
+        $query = Inquiry::where('client_id', $client->id)
             ->orderByDesc('created_at');
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
+                $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('property_title', 'like', "%{$search}%");
             });
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
         }
 
         $contacts = $query->paginate(25);
 
-        // Map Contact fields to what the view expects
-        $contacts->getCollection()->transform(function ($contact) {
-            $contact->name = trim($contact->first_name . ' ' . $contact->last_name);
-            $customFields = json_decode($contact->custom_fields, true) ?? [];
-            $contact->property_address = $customFields['last_inquiry_title'] ?? null;
-            $contact->message = $customFields['last_inquiry_message'] ?? null;
-            return $contact;
+        // Map Inquiry fields to what the view expects (property_address is an accessor)
+        $contacts->getCollection()->transform(function ($inquiry) {
+            $inquiry->property_address = $inquiry->property_title;
+            return $inquiry;
         });
 
         return view('client.widget.inquiry-contacts', compact('contacts'));
@@ -219,6 +291,7 @@ class WidgetDashboardController extends Controller
     public function saveConfig(Request $request)
     {
         $request->validate([
+            'enableAiSearch' => 'nullable',
             'enableMapView' => 'nullable',
             'enableCurrencyConverter' => 'nullable',
             'enableWishlist' => 'nullable',
@@ -241,6 +314,7 @@ class WidgetDashboardController extends Controller
         $config = $client->widget_config ?? [];
 
         // Feature toggles
+        $config['enableAiSearch'] = $request->boolean('enableAiSearch');
         $config['enableMapView'] = $request->boolean('enableMapView');
         $config['enableCurrencyConverter'] = $request->boolean('enableCurrencyConverter');
         $config['enableWishlist'] = $request->boolean('enableWishlist');
@@ -264,6 +338,7 @@ class WidgetDashboardController extends Controller
 
         $client->update([
             'widget_config' => $config,
+            'ai_search_enabled' => $request->boolean('enableAiSearch'),
             'default_language' => $request->input('defaultLanguage', $client->default_language),
         ]);
 
@@ -276,22 +351,20 @@ class WidgetDashboardController extends Controller
     public function exportInquiryContacts()
     {
         $client = auth()->user()->client;
-        $contacts = Contact::where('client_id', $client->id)
-            ->where('source', 'widget_inquiry')
+        $inquiries = Inquiry::where('client_id', $client->id)
             ->orderByDesc('created_at')
             ->get();
 
-        $csv = "Name,Email,Phone,Property,Status,Date\n";
-        foreach ($contacts as $contact) {
-            $name = trim($contact->first_name . ' ' . $contact->last_name);
-            $customFields = json_decode($contact->custom_fields, true) ?? [];
+        $csv = "Name,Email,Phone,Property,Message,Status,Date\n";
+        foreach ($inquiries as $inquiry) {
             $csv .= implode(',', [
-                '"' . str_replace('"', '""', $name) . '"',
-                '"' . str_replace('"', '""', $contact->email ?? '') . '"',
-                '"' . str_replace('"', '""', $contact->phone ?? '') . '"',
-                '"' . str_replace('"', '""', $customFields['last_inquiry_title'] ?? '') . '"',
-                '"' . ($contact->status ?? 'new') . '"',
-                '"' . ($contact->created_at?->format('Y-m-d H:i') ?? '') . '"',
+                '"' . str_replace('"', '""', $inquiry->name ?? '') . '"',
+                '"' . str_replace('"', '""', $inquiry->email ?? '') . '"',
+                '"' . str_replace('"', '""', $inquiry->phone ?? '') . '"',
+                '"' . str_replace('"', '""', $inquiry->property_title ?? '') . '"',
+                '"' . str_replace('"', '""', substr($inquiry->message ?? '', 0, 500)) . '"',
+                '"' . ($inquiry->status ?? 'new') . '"',
+                '"' . ($inquiry->created_at?->format('Y-m-d H:i') ?? '') . '"',
             ]) . "\n";
         }
 
@@ -302,15 +375,15 @@ class WidgetDashboardController extends Controller
     }
 
     /**
-     * Update inquiry contact status.
+     * Update inquiry status.
      */
-    public function updateInquiryStatus(Request $request, Contact $contact)
+    public function updateInquiryStatus(Request $request, Inquiry $inquiry)
     {
         $request->validate(['status' => 'required|in:new,contacted,converted,archived']);
 
-        $contact->update(['status' => $request->status]);
+        $inquiry->update(['status' => $request->status]);
 
-        return back()->with('success', 'Contact status updated.');
+        return back()->with('success', 'Inquiry status updated.');
     }
 
     protected function generateEmbedCode($client): string

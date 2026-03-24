@@ -3,80 +3,97 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
-use App\Models\Campaign;
-use App\Models\Contact;
-use App\Models\ClientUsage;
+use App\Services\WidgetAnalyticsService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function __construct(
+        protected WidgetAnalyticsService $analyticsService,
+    ) {}
+
+    /**
+     * Main dashboard - shows widget analytics.
+     */
+    public function index(Request $request)
     {
         $client = Auth::user()->client;
-        $cacheKey = "dashboard_stats:{$client->id}";
+        $period = $request->input('period', '30');
 
-        $stats = Cache::remember($cacheKey, 300, function () use ($client) {
-            $month = now()->format('Y-m');
-            $usage = ClientUsage::firstOrCreate(
-                ['client_id' => $client->id, 'month' => $month],
-                ['emails_sent' => 0, 'contacts_count' => 0]
-            );
-
-            $totalContacts = Contact::where('status', 'subscribed')->count();
-
-            $avgOpenRate = Campaign::where('status', 'sent')
-                ->where('total_sent', '>', 0)
-                ->selectRaw('AVG(total_opened / total_sent * 100) as avg_open_rate')
-                ->value('avg_open_rate');
-
-            return [
-                'total_contacts'     => $totalContacts,
-                'emails_sent'        => $usage->emails_sent,
-                'emails_limit'       => $client->plan->max_emails_per_month,
-                'avg_open_rate'      => round($avgOpenRate ?? 0, 1),
-                'total_campaigns'    => Campaign::count(),
-                'sending_campaigns'  => Campaign::whereIn('status', ['sending', 'queued'])->count(),
-            ];
-        });
-
-        $recentCampaigns = Campaign::with('list')
-            ->latest()
-            ->limit(5)
-            ->get();
-
-        // Engagement chart data (last 30 days)
-        $chartData = $this->getEngagementChartData();
-
-        return view('client.dashboard', compact('stats', 'recentCampaigns', 'chartData', 'client'));
-    }
-
-    protected function getEngagementChartData(): array
-    {
-        $client = Auth::user()->client;
-        $days = collect();
-
-        for ($i = 29; $i >= 0; $i--) {
-            $date = now()->subDays($i)->format('Y-m-d');
-            $days->push($date);
+        if (!$client->domain) {
+            return view('client.widget.analytics', [
+                'stats'            => [],
+                'chartData'        => ['labels' => [], 'searches' => [], 'views' => [], 'inquiries' => []],
+                'topLocations'     => [],
+                'topPropertyTypes' => [],
+                'topProperties'    => [],
+                'period'           => $period,
+                'apiDown'          => false,
+            ]);
         }
 
-        $opens = \App\Models\EmailEvent::where('event_type', 'open')
-            ->where('created_at', '>=', now()->subDays(30))
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->pluck('count', 'date');
+        $data = $this->analyticsService->getAllAnalytics($client->domain, $period);
+        $apiDown = $data['error'] ?? false;
 
-        $clicks = \App\Models\EmailEvent::where('event_type', 'click')
-            ->where('created_at', '>=', now()->subDays(30))
-            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->groupBy('date')
-            ->pluck('count', 'date');
+        // Map summary response to stat card values
+        $summary = $data['summary']['stats'] ?? [];
+        $totalViews = $summary['property_views'] ?? 0;
+        $totalInquiries = $summary['inquiries'] ?? 0;
+        $conversionRate = $totalViews > 0 ? round(($totalInquiries / $totalViews) * 100, 1) : 0;
 
-        return [
-            'labels' => $days->toArray(),
-            'opens'  => $days->map(fn($d) => $opens[$d] ?? 0)->toArray(),
-            'clicks' => $days->map(fn($d) => $clicks[$d] ?? 0)->toArray(),
+        $stats = [
+            'searches'       => $summary['searches'] ?? 0,
+            'property_views' => $summary['property_views'] ?? 0,
+            'card_clicks'    => $summary['card_clicks'] ?? 0,
+            'wishlist_adds'  => $summary['wishlist_adds'] ?? 0,
+            'inquiries'      => $totalInquiries,
+            'pdf_downloads'  => $summary['pdf_downloads'] ?? 0,
+            'video_views'    => $summary['video_views'] ?? 0,
+            'tour_views'     => $summary['tour_views'] ?? 0,
+            'conversion_rate' => $conversionRate,
+            'unique_sessions' => $data['summary']['unique_sessions'] ?? 0,
+            'total_events'    => $data['summary']['total_events'] ?? 0,
         ];
+
+        // Map trends response for Chart.js
+        $trends = $data['trends'] ?? [];
+        $chartData = [
+            'labels'    => $trends['labels'] ?? [],
+            'searches'  => $trends['datasets']['searches'] ?? [],
+            'views'     => $trends['datasets']['property_views'] ?? [],
+            'inquiries' => $trends['datasets']['inquiries'] ?? [],
+        ];
+
+        // Map top properties (limit to 10)
+        $topProperties = array_slice($data['properties']['properties'] ?? [], 0, 10);
+
+        // Map search insights
+        $searchData = $data['searches'] ?? [];
+        $totalSearchCount = $searchData['total_searches'] ?? 1;
+
+        $topLocations = collect($searchData['top_locations'] ?? [])
+            ->map(fn ($count, $name) => [
+                'name'       => $name,
+                'count'      => $count,
+                'percentage' => $totalSearchCount > 0 ? round(($count / $totalSearchCount) * 100, 1) : 0,
+            ])
+            ->values()
+            ->take(10)
+            ->all();
+
+        $topPropertyTypes = collect($searchData['top_property_types'] ?? [])
+            ->map(fn ($count, $name) => [
+                'name'       => $name,
+                'count'      => $count,
+                'percentage' => $totalSearchCount > 0 ? round(($count / $totalSearchCount) * 100, 1) : 0,
+            ])
+            ->values()
+            ->take(10)
+            ->all();
+
+        return view('client.widget.analytics', compact(
+            'stats', 'chartData', 'topLocations', 'topPropertyTypes', 'topProperties', 'period', 'apiDown'
+        ));
     }
 }

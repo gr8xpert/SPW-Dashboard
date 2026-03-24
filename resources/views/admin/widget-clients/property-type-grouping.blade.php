@@ -242,6 +242,10 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token() }}';
+    const reorderGroupsUrl = '{{ route("admin.widget-clients.property-type-grouping.groups.reorder", $client) }}';
+    const reorderMappingsBaseUrl = '{{ route("admin.widget-clients.property-type-grouping.index", $client) }}/groups';
+
     // Prevent double-submission on Create Group form
     const createGroupForm = document.querySelector('#createGroupModal form');
     const createGroupBtn = document.getElementById('create-group-btn');
@@ -352,6 +356,121 @@ document.addEventListener('DOMContentLoaded', function() {
 
         new bootstrap.Modal(document.getElementById('editGroupModal')).show();
     };
+
+    // ─── Group Reorder ─────────────────────────────────────────────────────────
+    document.querySelectorAll('.move-group-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const groupItem = this.closest('.group-item');
+            const direction = this.dataset.direction;
+            const groupId = groupItem.dataset.groupId;
+            const parentId = groupItem.dataset.parentId || null;
+
+            // Get siblings (groups at the same level)
+            const siblings = Array.from(document.querySelectorAll('.group-item')).filter(function(item) {
+                return (item.dataset.parentId || null) === parentId;
+            });
+
+            const currentIndex = siblings.indexOf(groupItem);
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+            if (targetIndex < 0 || targetIndex >= siblings.length) return;
+
+            // Swap in DOM
+            const targetItem = siblings[targetIndex];
+            if (direction === 'up') {
+                groupItem.parentNode.insertBefore(groupItem, targetItem);
+            } else {
+                groupItem.parentNode.insertBefore(targetItem, groupItem);
+            }
+
+            // Build new order array
+            const newOrder = [];
+            document.querySelectorAll('.group-item').forEach(function(item, index) {
+                const itemParentId = item.dataset.parentId || null;
+                const sameLevel = siblings.some(s => s.dataset.groupId === item.dataset.groupId);
+                if (sameLevel) {
+                    newOrder.push({
+                        id: parseInt(item.dataset.groupId),
+                        sort_order: newOrder.length,
+                        parent_group_id: itemParentId ? parseInt(itemParentId) : null
+                    });
+                }
+            });
+
+            // Send AJAX request
+            fetch(reorderGroupsUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ order: newOrder }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Failed to save order');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to save order');
+                location.reload();
+            });
+        });
+    });
+
+    // ─── Mapping Reorder ───────────────────────────────────────────────────────
+    document.querySelectorAll('.move-mapping-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const mappingItem = this.closest('.mapping-item');
+            const mappingsList = this.closest('.mappings-list');
+            const direction = this.dataset.direction;
+            const groupId = mappingsList.dataset.groupId;
+
+            const siblings = Array.from(mappingsList.querySelectorAll('.mapping-item'));
+            const currentIndex = siblings.indexOf(mappingItem);
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+            if (targetIndex < 0 || targetIndex >= siblings.length) return;
+
+            // Swap in DOM
+            const targetItem = siblings[targetIndex];
+            if (direction === 'up') {
+                mappingItem.parentNode.insertBefore(mappingItem, targetItem);
+            } else {
+                mappingItem.parentNode.insertBefore(targetItem, mappingItem);
+            }
+
+            // Build new order array
+            const newOrder = Array.from(mappingsList.querySelectorAll('.mapping-item')).map(function(item) {
+                return parseInt(item.dataset.mappingId);
+            });
+
+            // Send AJAX request
+            fetch(reorderMappingsBaseUrl + '/' + groupId + '/reorder-mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({ order: newOrder }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Failed to save order');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to save order');
+                location.reload();
+            });
+        });
+    });
 });
 </script>
 @endsection

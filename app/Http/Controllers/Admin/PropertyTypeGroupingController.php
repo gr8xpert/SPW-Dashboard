@@ -212,4 +212,52 @@ class PropertyTypeGroupingController extends Controller
 
         return response()->json(['types' => $unmapped]);
     }
+
+    /**
+     * Reorder groups via AJAX.
+     */
+    public function reorderGroups(Request $request, Client $client): JsonResponse
+    {
+        $validated = $request->validate([
+            'order' => 'required|array',
+            'order.*.id' => 'required|integer|exists:client_custom_property_type_groups,id',
+            'order.*.sort_order' => 'required|integer|min:0',
+            'order.*.parent_group_id' => 'nullable|integer|exists:client_custom_property_type_groups,id',
+        ]);
+
+        foreach ($validated['order'] as $item) {
+            $group = ClientCustomPropertyTypeGroup::find($item['id']);
+            if ($group && $group->client_id === $client->id) {
+                $group->update([
+                    'sort_order' => $item['sort_order'],
+                    'parent_group_id' => $item['parent_group_id'] ?? null,
+                ]);
+            }
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Reorder mappings within a group.
+     */
+    public function reorderMappings(Request $request, Client $client, ClientCustomPropertyTypeGroup $group): JsonResponse
+    {
+        if ($group->client_id !== $client->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'order' => 'required|array',
+            'order.*' => 'required|integer|exists:client_property_type_mappings,id',
+        ]);
+
+        foreach ($validated['order'] as $index => $mappingId) {
+            ClientPropertyTypeMapping::where('id', $mappingId)
+                ->where('custom_group_id', $group->id)
+                ->update(['sort_order' => $index]);
+        }
+
+        return response()->json(['success' => true]);
+    }
 }

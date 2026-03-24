@@ -2,6 +2,16 @@
 
 @section('title', 'Widget Analytics')
 
+@php
+// TEMP FIX: Load all properties directly if not passed from controller
+if (empty($allProperties) && !empty(auth()->user()->client->domain)) {
+    $analyticsService = app(\App\Services\WidgetAnalyticsService::class);
+    $data = $analyticsService->getAllAnalytics(auth()->user()->client->domain, $period ?? '30');
+    $allProperties = $data['properties']['properties'] ?? [];
+    $topProperties = array_slice($allProperties, 0, 10);
+}
+@endphp
+
 @section('page-content')
 <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
@@ -9,7 +19,7 @@
         <p class="text-muted mb-0">Track how visitors interact with your property search widget</p>
     </div>
     <div class="d-flex gap-2">
-        <form method="GET" action="{{ route('dashboard.widget.analytics') }}" class="d-flex gap-2">
+        <form method="GET" action="{{ url()->current() }}" class="d-flex gap-2">
             <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
                 <option value="7"   {{ ($period ?? '30') == '7'   ? 'selected' : '' }}>Last 7 days</option>
                 <option value="30"  {{ ($period ?? '30') == '30'  ? 'selected' : '' }}>Last 30 days</option>
@@ -95,6 +105,19 @@
             </div>
         </div>
     </div>
+    <div class="col-6 col-xl">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-3 bg-secondary bg-opacity-10 p-3">
+                    <i class="bi bi-file-pdf fs-4 text-secondary"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">PDF Downloads</div>
+                    <div class="fw-bold fs-4">{{ number_format($stats['pdf_downloads'] ?? 0) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- Charts Row --}}
@@ -134,39 +157,54 @@
     </div>
 </div>
 
-{{-- Top Properties Table --}}
+{{-- Properties Section with Tabs --}}
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom pt-4 pb-3">
-        <h6 class="fw-bold mb-0"><i class="bi bi-trophy me-2 text-primary"></i>Top Properties</h6>
+        <div class="d-flex align-items-center justify-content-between">
+            <h6 class="fw-bold mb-0"><i class="bi bi-building me-2 text-primary"></i>Property Analytics</h6>
+            <div class="d-flex gap-2 align-items-center">
+                {{-- Search Box --}}
+                <input type="text" id="propertySearch" class="form-control form-control-sm" placeholder="Filter by ref..." style="width: 150px;">
+                {{-- Tab Buttons --}}
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" data-tab="top">Top 10</button>
+                    <button type="button" class="btn btn-outline-primary" data-tab="all">Top 100</button>
+                </div>
+            </div>
+        </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0" id="propertiesTable">
+                <thead class="table-light sticky-top">
                     <tr>
                         <th>Property Ref</th>
                         <th>Location</th>
+                        <th>Type</th>
                         <th class="text-end">Views</th>
                         <th class="text-end">Clicks</th>
                         <th class="text-end">Wishlist</th>
                         <th class="text-end">Inquiries</th>
+                        <th class="text-end">PDFs</th>
                         <th class="text-end">Unique Users</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @forelse($topProperties ?? [] as $property)
-                        <tr>
+                <tbody id="propertiesTableBody" data-total="{{ count($allProperties ?? []) }}">
+                    @forelse($allProperties ?? $topProperties ?? [] as $property)
+                        <tr data-ref="{{ strtolower($property['property_ref'] ?? '') }}" class="{{ $loop->index >= 10 ? 'd-none all-property' : 'top-property' }}">
                             <td class="fw-medium">{{ $property['property_ref'] ?? '-' }}</td>
-                            <td>{{ $property['location'] ?? '-' }}</td>
+                            <td>{{ $property['location'] ?: '-' }}</td>
+                            <td>{{ $property['property_type'] ?: '-' }}</td>
                             <td class="text-end">{{ number_format($property['views'] ?? 0) }}</td>
                             <td class="text-end">{{ number_format($property['clicks'] ?? 0) }}</td>
                             <td class="text-end">{{ number_format($property['wishlist_adds'] ?? 0) }}</td>
                             <td class="text-end">{{ number_format($property['inquiries'] ?? 0) }}</td>
+                            <td class="text-end">{{ number_format($property['pdf_downloads'] ?? 0) }}</td>
                             <td class="text-end">{{ number_format($property['unique_users'] ?? 0) }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">
+                            <td colspan="9" class="text-center text-muted py-4">
                                 No property data available yet.
                             </td>
                         </tr>
@@ -174,6 +212,12 @@
                 </tbody>
             </table>
         </div>
+    </div>
+    <div class="card-footer bg-white border-top py-2">
+        <small class="text-muted" id="propertyCount">
+            Showing <span id="visibleCount">{{ min(10, count($allProperties ?? $topProperties ?? [])) }}</span> of <span id="totalCount">{{ count($allProperties ?? $topProperties ?? []) }}</span> most active properties
+        </small>
+        <!-- DEBUG: allProperties={{ count($allProperties ?? []) }} topProperties={{ count($topProperties ?? []) }} allDefined={{ isset($allProperties) ? 'yes' : 'no' }} topDefined={{ isset($topProperties) ? 'yes' : 'no' }} controllerDebug={{ json_encode($debugInfo ?? 'not set') }} rendered={{ now()->timestamp }} -->
     </div>
 </div>
 
@@ -356,5 +400,70 @@ if (donutCtx) {
         }
     });
 }
+
+// Property table tabs and search - wrap in DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    const tabButtons = document.querySelectorAll('[data-tab]');
+    const tableBody = document.getElementById('propertiesTableBody');
+    const searchInput = document.getElementById('propertySearch');
+    const visibleCountEl = document.getElementById('visibleCount');
+
+    console.log('Property tabs init - rows in DOM:', tableBody?.querySelectorAll('tr').length, 'server expected:', tableBody?.dataset.total);
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            tabButtons.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            const mode = this.dataset.tab;
+            const rows = tableBody?.querySelectorAll('tr') || [];
+            let visibleCount = 0;
+
+            console.log('Tab clicked:', mode, 'rows:', rows.length);
+
+            rows.forEach((row, index) => {
+                if (mode === 'all') {
+                    row.classList.remove('d-none');
+                    visibleCount++;
+                } else {
+                    if (index < 10) {
+                        row.classList.remove('d-none');
+                        visibleCount++;
+                    } else {
+                        row.classList.add('d-none');
+                    }
+                }
+            });
+
+            if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+            if (searchInput) searchInput.value = '';
+        });
+    });
+
+    // Property search
+    searchInput?.addEventListener('input', function() {
+        const search = this.value.toLowerCase().trim();
+        const rows = tableBody?.querySelectorAll('tr') || [];
+        let visibleCount = 0;
+
+        // Switch to "All" view when searching
+        if (search) {
+            tabButtons.forEach(b => b.classList.remove('active'));
+            document.querySelector('[data-tab="all"]')?.classList.add('active');
+        }
+
+        rows.forEach(row => {
+            const ref = row.dataset.ref || '';
+            if (!search || ref.includes(search)) {
+                row.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                row.classList.add('d-none');
+            }
+        });
+
+        if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+    });
+});
 </script>
 @endpush

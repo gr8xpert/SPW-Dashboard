@@ -1,6 +1,19 @@
 @php $indent = $level * 20; @endphp
-<div class="list-group-item {{ !$group->is_active ? 'bg-light text-muted' : '' }}" style="padding-left: {{ 16 + $indent }}px;">
+<div class="list-group-item group-item {{ !$group->is_active ? 'bg-light text-muted' : '' }}"
+     data-group-id="{{ $group->id }}"
+     data-sort-order="{{ $group->sort_order }}"
+     data-parent-id="{{ $group->parent_group_id ?? '' }}"
+     style="padding-left: {{ 16 + $indent }}px;">
     <div class="d-flex align-items-center gap-2">
+        {{-- Reorder buttons --}}
+        <div class="btn-group btn-group-sm me-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm move-group-btn" data-direction="up" title="Move Up">
+                <i class="bi bi-chevron-up"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm move-group-btn" data-direction="down" title="Move Down">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
         <i class="bi bi-folder{{ $group->children->isNotEmpty() || $group->mappings->isNotEmpty() ? '-fill text-warning' : ' text-secondary' }}"></i>
         <div class="flex-grow-1">
             <div class="fw-medium">
@@ -34,9 +47,17 @@
 
     {{-- Mapped Property Types --}}
     @if($group->mappings->isNotEmpty())
-        <div class="mt-2 ms-4">
-            @foreach($group->mappings as $mapping)
-                <div class="d-flex align-items-center gap-2 py-1 border-bottom">
+        <div class="mt-2 ms-4 mappings-list" data-group-id="{{ $group->id }}">
+            @foreach($group->mappings->sortBy('sort_order') as $mapping)
+                <div class="d-flex align-items-center gap-2 py-1 border-bottom mapping-item" data-mapping-id="{{ $mapping->id }}" data-sort-order="{{ $mapping->sort_order }}">
+                    <div class="btn-group btn-group-sm me-1">
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 move-mapping-btn" data-direction="up" title="Move Up">
+                            <i class="bi bi-chevron-up" style="font-size: 0.7rem;"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 move-mapping-btn" data-direction="down" title="Move Down">
+                            <i class="bi bi-chevron-down" style="font-size: 0.7rem;"></i>
+                        </button>
+                    </div>
                     <i class="bi bi-house text-primary"></i>
                     <span class="small flex-grow-1">{{ $mapping->feed_type_name ?: $mapping->feed_type_id }}</span>
                     <form method="POST" action="{{ route('admin.widget-clients.property-type-grouping.mappings.destroy', [$client, $mapping]) }}" class="d-inline">

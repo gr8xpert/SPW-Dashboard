@@ -8,9 +8,14 @@
         <h4 class="mb-1 fw-bold"><i class="bi bi-file-earmark-richtext me-2 text-primary"></i>Email Templates</h4>
         <p class="text-muted mb-0">Design and manage reusable email templates</p>
     </div>
-    <a href="{{ route('dashboard.templates.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg me-1"></i> New Template
-    </a>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#foldersModal">
+            <i class="bi bi-folder-plus me-1"></i> Manage Folders
+        </button>
+        <a href="{{ route('dashboard.templates.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> New Template
+        </a>
+    </div>
 </div>
 
 {{-- Filters --}}
@@ -162,4 +167,222 @@
         </div>
     @endif
 @endif
+
+{{-- Folders Modal --}}
+<div class="modal fade" id="foldersModal" tabindex="-1" aria-labelledby="foldersModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="foldersModalLabel">
+                    <i class="bi bi-folder me-2 text-primary"></i>Manage Folders
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {{-- New folder form --}}
+                <form id="newFolderForm" class="mb-4" data-ajax>
+                    <label class="form-label fw-medium">Create New Folder</label>
+                    <div class="input-group">
+                        <input type="text" id="newFolderName" class="form-control" placeholder="Folder name..." maxlength="100" required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-lg me-1"></i> Add
+                        </button>
+                    </div>
+                </form>
+
+                <hr>
+
+                {{-- Existing folders list --}}
+                <div id="foldersList">
+                    @forelse($folders as $folder)
+                        <div class="folder-item d-flex align-items-center justify-content-between py-2 border-bottom" data-id="{{ $folder->id }}">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                <i class="bi bi-folder text-warning"></i>
+                                <span class="folder-name">{{ $folder->name }}</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary small">
+                                    {{ $folder->templates_count ?? $folder->templates()->count() }} templates
+                                </span>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-folder" title="Rename">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-folder" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="text-center text-muted py-3" id="noFoldersMsg">
+                            <i class="bi bi-folder fs-3 opacity-25 d-block mb-2"></i>
+                            No folders yet. Create one above.
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const foldersList = document.getElementById('foldersList');
+    const newFolderForm = document.getElementById('newFolderForm');
+    const newFolderName = document.getElementById('newFolderName');
+
+    // Create folder
+    newFolderForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const name = newFolderName.value.trim();
+        if (!name) return;
+
+        try {
+            const res = await fetch('{{ route("dashboard.template-folders.store") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ name })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // Remove "no folders" message if present
+                const emptyMsg = document.getElementById('noFoldersMsg');
+                if (emptyMsg) emptyMsg.remove();
+                // Add to list
+                foldersList.insertAdjacentHTML('beforeend', createFolderHtml(data.folder));
+                newFolderName.value = '';
+                updateFolderDropdown();
+            } else {
+                alert(data.message || 'Failed to create folder.');
+            }
+        } catch (err) {
+            alert('Error creating folder.');
+        }
+    });
+
+    // Edit / Delete handlers (event delegation)
+    foldersList.addEventListener('click', async function(e) {
+        const editBtn = e.target.closest('.btn-edit-folder');
+        const deleteBtn = e.target.closest('.btn-delete-folder');
+        const folderItem = e.target.closest('.folder-item');
+        if (!folderItem) return;
+
+        const folderId = folderItem.dataset.id;
+        const nameEl = folderItem.querySelector('.folder-name');
+
+        if (editBtn) {
+            const currentName = nameEl.textContent.trim();
+            const newName = prompt('Rename folder:', currentName);
+            if (!newName || newName.trim() === currentName) return;
+
+            try {
+                const res = await fetch(`/dashboard/template-folders/${folderId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ name: newName.trim() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    nameEl.textContent = data.folder.name;
+                    updateFolderDropdown();
+                } else {
+                    alert(data.message || 'Failed to rename folder.');
+                }
+            } catch (err) {
+                alert('Error renaming folder.');
+            }
+        }
+
+        if (deleteBtn) {
+            if (!confirm('Delete this folder? Templates will be moved to root.')) return;
+
+            try {
+                const res = await fetch(`/dashboard/template-folders/${folderId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    folderItem.remove();
+                    updateFolderDropdown();
+                    if (!foldersList.querySelector('.folder-item')) {
+                        foldersList.innerHTML = `<div class="text-center text-muted py-3" id="noFoldersMsg">
+                            <i class="bi bi-folder fs-3 opacity-25 d-block mb-2"></i>
+                            No folders yet. Create one above.
+                        </div>`;
+                    }
+                } else {
+                    alert(data.message || 'Failed to delete folder.');
+                }
+            } catch (err) {
+                alert('Error deleting folder.');
+            }
+        }
+    });
+
+    function createFolderHtml(folder) {
+        return `
+            <div class="folder-item d-flex align-items-center justify-content-between py-2 border-bottom" data-id="${folder.id}">
+                <div class="d-flex align-items-center gap-2 flex-grow-1">
+                    <i class="bi bi-folder text-warning"></i>
+                    <span class="folder-name">${escapeHtml(folder.name)}</span>
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary small">0 templates</span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary btn-edit-folder" title="Rename">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger btn-delete-folder" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function updateFolderDropdown() {
+        // Refresh page to update the dropdown filter
+        // (Or could update dropdown dynamically)
+        const folderSelect = document.querySelector('select[name="folder"]');
+        if (!folderSelect) return;
+
+        // Fetch updated folders and rebuild dropdown
+        fetch('{{ route("dashboard.template-folders.index") }}', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(folders => {
+            const currentVal = folderSelect.value;
+            folderSelect.innerHTML = '<option value="">All Folders</option>';
+            folders.forEach(f => {
+                folderSelect.insertAdjacentHTML('beforeend',
+                    `<option value="${f.id}" ${currentVal == f.id ? 'selected' : ''}>${escapeHtml(f.name)}</option>`
+                );
+            });
+        });
+    }
+});
+</script>
+@endpush
 @endsection

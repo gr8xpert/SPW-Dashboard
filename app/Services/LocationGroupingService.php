@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Log;
 
 class LocationGroupingService
 {
+    /**
+     * Request-level cache for feed locations to avoid multiple API calls.
+     */
+    protected array $feedLocationCache = [];
+
     public function __construct(
         protected WidgetSubscriptionService $subscriptionService
     ) {}
@@ -18,8 +23,10 @@ class LocationGroupingService
     /**
      * Get merged locations: custom groups nested under their parent feed locations.
      * Returns a FLAT array with parent_id references (widget expects this structure).
+     * @param Client $client The client
+     * @param string $lang Language code for translations (e.g., 'it_IT', 'es_ES')
      */
-    public function getMergedLocations(Client $client): array
+    public function getMergedLocations(Client $client, string $lang = 'en_US'): array
     {
         if (!$client->custom_location_grouping_enabled) {
             return [];
@@ -44,8 +51,8 @@ class LocationGroupingService
             ->pluck('feed_location_id')
             ->toArray();
 
-        // Fetch feed locations
-        $feedLocations = $this->fetchFeedLocations($client);
+        // Fetch feed locations with language translations
+        $feedLocations = $this->fetchFeedLocations($client, $lang);
 
         if ($feedLocations === null) {
             // API failed, return custom groups only (as root items)
@@ -477,19 +484,30 @@ class LocationGroupingService
 
     /**
      * Fetch locations from the external API.
+     * Uses request-level caching to avoid multiple slow API calls.
+     * @param Client $client The client
+     * @param string $lang Language code for translations
      */
-    public function fetchFeedLocations(Client $client): ?array
+    public function fetchFeedLocations(Client $client, string $lang = 'en_US'): ?array
     {
+        // Check request-level cache first (avoids 3x API calls on admin page)
+        $cacheKey = $client->id . '_' . $lang;
+        if (isset($this->feedLocationCache[$cacheKey])) {
+            return $this->feedLocationCache[$cacheKey];
+        }
+
         $apiUrl = null;
         $headers = ['Accept' => 'application/json'];
         $queryParam = '';
 
         if ($client->resales_client_id && $client->resales_api_key) {
             $apiUrl = 'https://api.smartpropertywidget.com';
-            $queryParam = '?_domain=' . urlencode($client->domain);
+            $queryParam = '?_domain=' . urlencode($client->domain) . '&_lang=' . urlencode($lang);
         } elseif ($client->api_url && $client->api_key) {
             $apiUrl = rtrim($client->api_url, '/');
             $headers['access_token'] = $client->api_key;
+            // CRM uses 'ln' parameter for language (not 'lang')
+            $queryParam = '?ln=' . urlencode($lang);
         } else {
             return null;
         }
@@ -501,7 +519,8 @@ class LocationGroupingService
                 $url = $apiUrl . $endpoint . $queryParam;
 
                 $response = Http::withoutVerifying()
-                    ->timeout(15)
+                    ->connectTimeout(10)
+                    ->timeout(60)
                     ->withHeaders($headers)
                     ->get($url);
 
@@ -509,8 +528,10 @@ class LocationGroupingService
                     $json = $response->json();
 
                     if (isset($json['data']) && is_array($json['data'])) {
+                        $this->feedLocationCache[$cacheKey] = $json['data'];
                         return $json['data'];
                     } elseif (is_array($json) && !empty($json) && isset($json[0])) {
+                        $this->feedLocationCache[$cacheKey] = $json;
                         return $json;
                     }
                 }
@@ -519,6 +540,8 @@ class LocationGroupingService
             }
         }
 
+        // Cache null result to avoid retrying on same request
+        $this->feedLocationCache[$cacheKey] = null;
         return null;
     }
 

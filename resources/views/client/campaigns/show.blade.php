@@ -1,6 +1,6 @@
 @extends('layouts.client')
 
-@section('title', '{{ $campaign->name }} — Smart Property Management')
+@section('title', $campaign->name . ' — Smart Property Management')
 
 @section('page-content')
 

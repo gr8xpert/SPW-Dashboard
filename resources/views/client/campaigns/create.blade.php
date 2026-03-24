@@ -253,7 +253,7 @@
                         name="smtp_account_id"
                         class="form-select @error('smtp_account_id') is-invalid @enderror"
                     >
-                        <option value="">— Default / Auto-select —</option>
+                        <option value="">— Fallback (Server Sendmail) —</option>
                         @foreach($smtpAccounts as $smtp)
                             <option value="{{ $smtp->id }}" {{ old('smtp_account_id') == $smtp->id ? 'selected' : '' }}>
                                 {{ $smtp->name }} ({{ $smtp->host }})
@@ -266,8 +266,12 @@
                     @if($smtpAccounts->isEmpty())
                         <div class="form-text text-warning">
                             <i class="bi bi-exclamation-triangle me-1"></i>
-                            No SMTP accounts configured.
-                            <a href="{{ route('dashboard.smtp-accounts.index') }}">Add one.</a>
+                            No SMTP accounts configured. Using server sendmail (limited for bulk).
+                            <a href="{{ route('dashboard.smtp-accounts.index') }}">Add SMTP account</a> for better deliverability.
+                        </div>
+                    @else
+                        <div class="form-text">
+                            Select an SMTP account for best deliverability. Fallback uses server sendmail.
                         </div>
                     @endif
                 </div>

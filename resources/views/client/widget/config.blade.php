@@ -35,6 +35,14 @@
             <div class="row g-4">
                 <div class="col-md-4">
                     <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="enableAiSearch" name="enableAiSearch"
+                               value="1" @checked(old('enableAiSearch', $config['enableAiSearch'] ?? $client->ai_search_enabled ?? false))>
+                        <label class="form-check-label fw-medium" for="enableAiSearch">AI Search</label>
+                    </div>
+                    <div class="form-text">Enable AI-powered natural language property search</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="enableMapView" name="enableMapView"
                                value="1" @checked(old('enableMapView', $config['enableMapView'] ?? true))>
                         <label class="form-check-label fw-medium" for="enableMapView">Map View</label>

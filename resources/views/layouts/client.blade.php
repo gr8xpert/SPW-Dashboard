@@ -10,19 +10,13 @@
 
     <nav class="mt-2 pb-4">
         <p class="nav-section">Main</p>
-        <a href="{{ route('dashboard.home') }}" class="nav-link {{ request()->routeIs('dashboard.home') || request()->routeIs('dashboard.index') ? 'active' : '' }}">
-            <i class="bi bi-grid"></i> Dashboard
+        <a href="{{ route('dashboard.home') }}" class="nav-link {{ request()->routeIs('dashboard.home') || request()->routeIs('dashboard.index') || request()->routeIs('dashboard.widget.analytics') ? 'active' : '' }}">
+            <i class="bi bi-graph-up"></i> Dashboard
         </a>
 
         <p class="nav-section">Widget</p>
-        <a href="{{ route('dashboard.widget.index') }}" class="nav-link {{ request()->routeIs('dashboard.widget.index') ? 'active' : '' }}">
+        <a href="{{ route('dashboard.widget.index') }}" class="nav-link {{ request()->routeIs('dashboard.widget.index') || request()->routeIs('dashboard.widget.config') ? 'active' : '' }}">
             <i class="bi bi-window-stack"></i> Widget Status
-        </a>
-        <a href="{{ route('dashboard.widget.analytics') }}" class="nav-link {{ request()->routeIs('dashboard.widget.analytics') ? 'active' : '' }}">
-            <i class="bi bi-graph-up"></i> Widget Analytics
-        </a>
-        <a href="{{ route('dashboard.widget.setup') }}" class="nav-link {{ request()->routeIs('dashboard.widget.setup') ? 'active' : '' }}">
-            <i class="bi bi-gear-wide-connected"></i> Widget Setup
         </a>
         <a href="{{ route('dashboard.widget.inquiry-contacts') }}" class="nav-link {{ request()->routeIs('dashboard.widget.inquiry-contacts') ? 'active' : '' }}">
             <i class="bi bi-person-lines-fill"></i> Inquiry Contacts

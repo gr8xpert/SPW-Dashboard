@@ -101,11 +101,12 @@ class WidgetAnalyticsService
 
     /**
      * Convert domain to the client_id format used by analytics CSV files.
-     * The PHP analytics API expects underscores instead of dots.
+     * The PHP analytics API expects the domain as-is (with dots).
      */
     protected function domainToClientId(string $domain): string
     {
-        return str_replace('.', '_', $domain);
+        // Domain is used as-is - CSV files are named with dots (e.g., solobanus.com.csv)
+        return $domain;
     }
 
     /**

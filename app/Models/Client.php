@@ -19,6 +19,7 @@ class Client extends Model
         'resales_client_id', 'resales_api_key', 'resales_filter_id', 'resales_agency_code',
         'resales_settings', 'enabled_languages', 'custom_location_grouping_enabled',
         'custom_property_type_grouping_enabled', 'custom_feature_grouping_enabled',
+        'location_parent_type', 'location_child_type',
         // Paddle billing
         'paddle_subscription_id', 'paddle_customer_id', 'paddle_platform_customer_id',
         'subscription_status', 'grace_ends_at', 'subscription_expires_at',

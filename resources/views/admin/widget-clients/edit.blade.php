@@ -267,15 +267,15 @@
 
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'location']) }}"
-                               class="btn btn-outline-primary btn-sm">
+                               class="btn btn-outline-primary btn-sm" data-loader="Loading locations...">
                                 <i class="bi bi-geo-alt me-1"></i> Manage Locations
                             </a>
                             <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'property_type']) }}"
-                               class="btn btn-outline-primary btn-sm">
+                               class="btn btn-outline-primary btn-sm" data-loader="Loading property types...">
                                 <i class="bi bi-house me-1"></i> Manage Property Types
                             </a>
                             <a href="{{ route('admin.widget-clients.display-preferences', [$client, 'type' => 'feature']) }}"
-                               class="btn btn-outline-primary btn-sm">
+                               class="btn btn-outline-primary btn-sm" data-loader="Loading features...">
                                 <i class="bi bi-check2-square me-1"></i> Manage Features
                             </a>
                         </div>
@@ -287,7 +287,8 @@
                             <div class="d-flex flex-wrap gap-2 mb-2">
                                 <div class="d-flex align-items-center gap-1">
                                     <a href="{{ route('admin.widget-clients.location-grouping.index', $client) }}"
-                                       class="btn btn-{{ $client->custom_location_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                       class="btn btn-{{ $client->custom_location_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm"
+                                       data-loader="Loading locations...">
                                         <i class="bi bi-geo-alt me-1"></i> Location Grouping
                                     </a>
                                     @if($client->custom_location_grouping_enabled)
@@ -297,7 +298,8 @@
 
                                 <div class="d-flex align-items-center gap-1">
                                     <a href="{{ route('admin.widget-clients.property-type-grouping.index', $client) }}"
-                                       class="btn btn-{{ $client->custom_property_type_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                       class="btn btn-{{ $client->custom_property_type_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm"
+                                       data-loader="Loading property types...">
                                         <i class="bi bi-house me-1"></i> Property Type Grouping
                                     </a>
                                     @if($client->custom_property_type_grouping_enabled)
@@ -307,7 +309,8 @@
 
                                 <div class="d-flex align-items-center gap-1">
                                     <a href="{{ route('admin.widget-clients.feature-grouping.index', $client) }}"
-                                       class="btn btn-{{ $client->custom_feature_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm">
+                                       class="btn btn-{{ $client->custom_feature_grouping_enabled ? 'primary' : 'outline-secondary' }} btn-sm"
+                                       data-loader="Loading features...">
                                         <i class="bi bi-check2-square me-1"></i> Feature Grouping
                                     </a>
                                     @if($client->custom_feature_grouping_enabled)
@@ -319,6 +322,42 @@
 
                         <div class="form-text mt-2">
                             These settings allow you to hide specific items or reorder them to appear in a custom sequence.
+                        </div>
+
+                        <div class="mt-3 pt-3 border-top">
+                            <h6 class="small text-muted mb-2">Location Hierarchy Types</h6>
+                            <p class="form-text mb-2">Configure which location types to use as parent and child in cascading location dropdowns.</p>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <label for="location_parent_type" class="form-label small">Parent Type (First Dropdown)</label>
+                                    <select class="form-select form-select-sm" id="location_parent_type" name="location_parent_type">
+                                        @foreach(['area' => 'Area', 'municipality' => 'Municipality', 'province' => 'Province', 'region' => 'Region', 'country' => 'Country'] as $value => $label)
+                                            <option value="{{ $value }}" @selected(old('location_parent_type', $client->location_parent_type ?? 'municipality') === $value)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label small">Child Types (Second Dropdown)</label>
+                                    @php
+                                        $selectedChildTypes = explode(',', old('location_child_type', $client->location_child_type ?? 'city'));
+                                    @endphp
+                                    <div class="d-flex flex-wrap gap-3">
+                                        @foreach(['city' => 'City', 'town' => 'Town', 'municipality' => 'Municipality', 'area' => 'Area', 'urbanization' => 'Urbanization'] as $value => $label)
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="child_type_{{ $value }}"
+                                                       name="location_child_types[]" value="{{ $value }}"
+                                                       @checked(in_array($value, $selectedChildTypes))>
+                                                <label class="form-check-label small" for="child_type_{{ $value }}">{{ $label }}</label>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <small class="text-muted">Select one or more types to appear as children</small>
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Common setups: <strong>Municipality → City</strong> (default), <strong>Area → Municipality</strong>, <strong>Province → Town</strong>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -671,6 +710,42 @@
                                            oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value))document.getElementById('wc_emailHeaderColorPicker').value=this.value">
                                 </div>
                                 <div class="form-text">Email header background. Falls back to primary color.</div>
+                            </div>
+                        </div>
+
+                        {{-- Customization Options --}}
+                        <h6 class="fw-bold mb-3 pt-3 border-top"><i class="bi bi-sliders2 me-2 text-muted"></i>Customization</h6>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="wc_wishlistIcon" class="form-label">Wishlist Icon</label>
+                                <select class="form-select" id="wc_wishlistIcon" name="wc_wishlistIcon">
+                                    <option value="heart" @selected(old('wc_wishlistIcon', $wc['wishlistIcon'] ?? 'heart') === 'heart')>Heart (Default)</option>
+                                    <option value="star" @selected(old('wc_wishlistIcon', $wc['wishlistIcon'] ?? 'heart') === 'star')>Star</option>
+                                    <option value="bookmark" @selected(old('wc_wishlistIcon', $wc['wishlistIcon'] ?? 'heart') === 'bookmark')>Bookmark</option>
+                                    <option value="save" @selected(old('wc_wishlistIcon', $wc['wishlistIcon'] ?? 'heart') === 'save')>Save</option>
+                                </select>
+                                <div class="form-text">Icon shown on property cards for wishlist</div>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="wc_recaptchaSiteKey" class="form-label">reCAPTCHA Site Key <span class="text-muted">(Public)</span></label>
+                                <input type="text" class="form-control font-monospace" id="wc_recaptchaSiteKey" name="wc_recaptchaSiteKey"
+                                       value="{{ old('wc_recaptchaSiteKey', $wc['recaptchaSiteKey'] ?? '') }}"
+                                       placeholder="6LcXXXXXXXXXXXXXXXXXXXXXXX"
+                                       autocomplete="off" data-lpignore="true" data-form-type="other">
+                                <div class="form-text">Google reCAPTCHA v2 site key for frontend widget</div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4"></div>
+                            <div class="col-md-8">
+                                <label for="wc_recaptchaSecretKey" class="form-label">reCAPTCHA Secret Key <span class="text-muted">(Private)</span></label>
+                                <input type="text" class="form-control font-monospace" id="wc_recaptchaSecretKey" name="wc_recaptchaSecretKey"
+                                       value="{{ old('wc_recaptchaSecretKey', $wc['recaptchaSecretKey'] ?? '') }}"
+                                       placeholder="6LcXXXXXXXXXXXXXXXXXXXXXXX"
+                                       autocomplete="off" data-lpignore="true" data-form-type="other">
+                                <div class="form-text">Secret key for server-side verification. Get both keys at <a href="https://www.google.com/recaptcha/admin" target="_blank">google.com/recaptcha</a></div>
                             </div>
                         </div>
 

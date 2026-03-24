@@ -71,22 +71,30 @@ class FeatureGroupingService
 
     /**
      * Get merged features (custom groups + feed features with preferences).
+     * @param Client $client The client
+     * @param string $lang Language code for translations (e.g., 'it_IT', 'es_ES')
      */
-    public function getMergedFeatures(Client $client): array
+    public function getMergedFeatures(Client $client, string $lang = 'en_US'): array
     {
         if (!$client->custom_feature_grouping_enabled) {
             return [];
         }
 
-        // Build custom group tree
-        $customTree = ClientCustomFeatureGroup::buildTree($client->id);
+        // Get all feed features with language translations FIRST
+        $feedFeatures = $this->fetchFeaturesFromApi($client, $lang);
+
+        // Build lookup map: id -> translated name
+        $feedFeaturesMap = [];
+        foreach ($feedFeatures as $feature) {
+            $feedFeaturesMap[(string) $feature['id']] = $feature['name'];
+        }
+
+        // Build custom group tree with translated names
+        $customTree = ClientCustomFeatureGroup::buildTree($client->id, $feedFeaturesMap);
 
         if (empty($customTree)) {
             return [];
         }
-
-        // Get all feed features
-        $feedFeatures = $this->fetchFeaturesFromApi($client);
 
         // Get mapped feature IDs
         $mappedIds = ClientFeatureMapping::where('client_id', $client->id)
@@ -106,8 +114,10 @@ class FeatureGroupingService
 
     /**
      * Fetch features from the client's API.
+     * @param Client $client The client
+     * @param string $lang Language code for translations
      */
-    protected function fetchFeaturesFromApi(Client $client): array
+    protected function fetchFeaturesFromApi(Client $client, string $lang = 'en_US'): array
     {
         $endpoints = ['/v1/property_features', '/v1/property-features', '/v1/features'];
         $apiUrl = null;
@@ -115,11 +125,12 @@ class FeatureGroupingService
 
         if ($client->resales_client_id && $client->resales_api_key) {
             $apiUrl = 'https://api.smartpropertywidget.com';
-            $queryParam = '?_domain=' . urlencode($client->domain);
+            $queryParam = '?_domain=' . urlencode($client->domain) . '&_lang=' . urlencode($lang);
         } elseif ($client->api_url && $client->api_key) {
             $apiUrl = rtrim($client->api_url, '/');
             $headers['access_token'] = $client->api_key;
-            $queryParam = '';
+            // CRM uses 'ln' parameter for language (not 'lang')
+            $queryParam = '?ln=' . urlencode($lang);
         } else {
             return [];
         }
@@ -128,7 +139,8 @@ class FeatureGroupingService
             try {
                 $url = $apiUrl . $endpoint . $queryParam;
                 $response = Http::withoutVerifying()
-                    ->timeout(15)
+                    ->connectTimeout(10)
+                    ->timeout(60)
                     ->withHeaders($headers)
                     ->get($url);
 

@@ -228,6 +228,14 @@
                             <br><i class="bi bi-folder-fill text-warning me-1"></i>
                             <strong>Custom Groups</strong> (yellow rows) can be positioned anywhere in the list.
                             <a href="{{ route('admin.widget-clients.location-grouping.index', $client) }}">Manage groups</a>
+                        @elseif($type === 'property_type' && $client->custom_property_type_grouping_enabled)
+                            <br><i class="bi bi-folder-fill text-warning me-1"></i>
+                            <strong>Custom Groups</strong> (yellow rows) can be positioned anywhere in the list.
+                            <a href="{{ route('admin.widget-clients.property-type-grouping.index', $client) }}">Manage groups</a>
+                        @elseif($type === 'feature' && $client->custom_feature_grouping_enabled)
+                            <br><i class="bi bi-folder-fill text-warning me-1"></i>
+                            <strong>Custom Groups</strong> (yellow rows) can be positioned anywhere in the list.
+                            <a href="{{ route('admin.widget-clients.feature-grouping.index', $client) }}">Manage groups</a>
                         @endif
                     </div>
                     <button type="button" class="btn btn-primary" onclick="saveAllPreferences()">

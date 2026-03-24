@@ -44,7 +44,7 @@ class Contact extends Model
     public function lists()
     {
         return $this->belongsToMany(ContactList::class, 'contact_list_pivot', 'contact_id', 'list_id')
-                    ->withPivot('added_at');
+                    ->withPivot('added_at', 'client_id');
     }
 
     public function emailEvents()

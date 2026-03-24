@@ -83,6 +83,9 @@ class WidgetSubscriptionService
             'openrouter_api_key'   => $client->ai_search_enabled ? $client->openrouter_api_key : null,
             'max_languages'        => $client->plan?->max_languages ?? 1,
             'enabledListingTypes'  => $this->getEnabledListingTypes($client),
+            // Location hierarchy configuration
+            'location_parent_type' => $client->location_parent_type ?? 'municipality',
+            'location_child_types' => array_filter(explode(',', $client->location_child_type ?? 'city')),
         ];
     }
 

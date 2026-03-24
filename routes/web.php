@@ -23,6 +23,7 @@ use App\Http\Controllers\Client\DashboardController as ClientDashboard;
 use App\Http\Controllers\Client\ContactController;
 use App\Http\Controllers\Client\ListController;
 use App\Http\Controllers\Client\TemplateController;
+use App\Http\Controllers\Client\TemplateFolderController;
 use App\Http\Controllers\Client\CampaignController;
 use App\Http\Controllers\Client\AutomationController;
 use App\Http\Controllers\Client\AnalyticsController;
@@ -163,6 +164,12 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::post('templates/{template}/restore/{version}', [TemplateController::class, 'restore'])->name('templates.restore');
     Route::post('templates/ai-generate',          [TemplateController::class, 'aiGenerate'])->name('templates.ai-generate');
 
+    // Template Folders
+    Route::get('template-folders',              [TemplateFolderController::class, 'index'])->name('template-folders.index');
+    Route::post('template-folders',             [TemplateFolderController::class, 'store'])->name('template-folders.store');
+    Route::put('template-folders/{folder}',     [TemplateFolderController::class, 'update'])->name('template-folders.update');
+    Route::delete('template-folders/{folder}',  [TemplateFolderController::class, 'destroy'])->name('template-folders.destroy');
+
     // Campaigns
     Route::resource('campaigns', CampaignController::class);
     Route::post('campaigns/{campaign}/schedule',  [CampaignController::class, 'schedule'])->name('campaigns.schedule');
@@ -223,7 +230,7 @@ Route::middleware(['auth', 'tenant', 'verified'])
     Route::get('widget/setup',             [WidgetDashboardController::class, 'setup'])->name('widget.setup');
     Route::get('widget/inquiry-contacts',  [WidgetDashboardController::class, 'inquiryContacts'])->name('widget.inquiry-contacts');
     Route::get('widget/inquiry-contacts/export', [WidgetDashboardController::class, 'exportInquiryContacts'])->name('widget.inquiry-contacts.export');
-    Route::patch('widget/inquiry-contacts/{contact}/status', [WidgetDashboardController::class, 'updateInquiryStatus'])->name('widget.inquiry-contacts.update-status');
+    Route::patch('widget/inquiry-contacts/{inquiry}/status', [WidgetDashboardController::class, 'updateInquiryStatus'])->name('widget.inquiry-contacts.update-status');
     Route::get('widget/download-plugin',  [WidgetDashboardController::class, 'downloadPlugin'])->name('widget.download-plugin');
     Route::put('widget/settings',         [WidgetDashboardController::class, 'updateSettings'])->name('widget.update-settings');
     Route::get('widget/config',           [WidgetDashboardController::class, 'config'])->name('widget.config');
@@ -338,7 +345,9 @@ Route::middleware(['auth', 'role:super_admin'])
     Route::post('widget-clients/{client}/property-type-grouping/groups',               [PropertyTypeGroupingController::class, 'storeGroup'])->name('widget-clients.property-type-grouping.groups.store');
     Route::put('widget-clients/{client}/property-type-grouping/groups/{group}',        [PropertyTypeGroupingController::class, 'updateGroup'])->name('widget-clients.property-type-grouping.groups.update');
     Route::delete('widget-clients/{client}/property-type-grouping/groups/{group}',     [PropertyTypeGroupingController::class, 'destroyGroup'])->name('widget-clients.property-type-grouping.groups.destroy');
+    Route::post('widget-clients/{client}/property-type-grouping/groups/reorder',       [PropertyTypeGroupingController::class, 'reorderGroups'])->name('widget-clients.property-type-grouping.groups.reorder');
     Route::post('widget-clients/{client}/property-type-grouping/groups/{group}/map',   [PropertyTypeGroupingController::class, 'mapTypes'])->name('widget-clients.property-type-grouping.groups.map');
+    Route::post('widget-clients/{client}/property-type-grouping/groups/{group}/reorder-mappings', [PropertyTypeGroupingController::class, 'reorderMappings'])->name('widget-clients.property-type-grouping.mappings.reorder');
     Route::delete('widget-clients/{client}/property-type-grouping/mappings/{mapping}', [PropertyTypeGroupingController::class, 'unmapType'])->name('widget-clients.property-type-grouping.mappings.destroy');
     Route::get('widget-clients/{client}/property-type-grouping/unmapped',              [PropertyTypeGroupingController::class, 'getUnmapped'])->name('widget-clients.property-type-grouping.unmapped');
 
@@ -348,7 +357,9 @@ Route::middleware(['auth', 'role:super_admin'])
     Route::post('widget-clients/{client}/feature-grouping/groups',               [FeatureGroupingController::class, 'storeGroup'])->name('widget-clients.feature-grouping.groups.store');
     Route::put('widget-clients/{client}/feature-grouping/groups/{group}',        [FeatureGroupingController::class, 'updateGroup'])->name('widget-clients.feature-grouping.groups.update');
     Route::delete('widget-clients/{client}/feature-grouping/groups/{group}',     [FeatureGroupingController::class, 'destroyGroup'])->name('widget-clients.feature-grouping.groups.destroy');
+    Route::post('widget-clients/{client}/feature-grouping/groups/reorder',       [FeatureGroupingController::class, 'reorderGroups'])->name('widget-clients.feature-grouping.groups.reorder');
     Route::post('widget-clients/{client}/feature-grouping/groups/{group}/map',   [FeatureGroupingController::class, 'mapFeatures'])->name('widget-clients.feature-grouping.groups.map');
+    Route::post('widget-clients/{client}/feature-grouping/groups/{group}/reorder-mappings', [FeatureGroupingController::class, 'reorderMappings'])->name('widget-clients.feature-grouping.mappings.reorder');
     Route::delete('widget-clients/{client}/feature-grouping/mappings/{mapping}', [FeatureGroupingController::class, 'unmapFeature'])->name('widget-clients.feature-grouping.mappings.destroy');
     Route::get('widget-clients/{client}/feature-grouping/unmapped',              [FeatureGroupingController::class, 'getUnmapped'])->name('widget-clients.feature-grouping.unmapped');
 

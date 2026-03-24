@@ -21,7 +21,7 @@ Route::post('/webhooks/paddle/platform', [PaddlePlatformWebhookController::class
     ->name('paddle.webhook.platform');
 
 // ─── Widget Public API (no auth — domain-validated, rate limited) ────────────
-Route::middleware('throttle:60,1')->prefix('v1/widget')->name('widget.')->group(function () {
+Route::middleware(['throttle:60,1', 'widget.cors'])->prefix('v1/widget')->name('widget.')->group(function () {
     Route::get('/subscription-check', [WidgetController::class, 'subscriptionCheck'])
         ->name('subscription-check');
     Route::get('/client-config', [WidgetController::class, 'clientConfig'])

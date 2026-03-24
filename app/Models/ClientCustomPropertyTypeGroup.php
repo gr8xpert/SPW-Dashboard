@@ -88,7 +88,12 @@ class ClientCustomPropertyTypeGroup extends Model
 
     // --- Tree Building ---
 
-    public static function buildTree(int $clientId): array
+    /**
+     * Build tree structure for custom property type groups.
+     * @param int $clientId The client ID
+     * @param array $feedTypes Optional array of feed types with translated names (keyed by ID)
+     */
+    public static function buildTree(int $clientId, array $feedTypes = []): array
     {
         $groups = static::where('client_id', $clientId)
             ->where('is_active', true)
@@ -98,10 +103,15 @@ class ClientCustomPropertyTypeGroup extends Model
             }])
             ->get();
 
-        return static::nestGroups($groups->where('parent_group_id', null)->values());
+        return static::nestGroups($groups->where('parent_group_id', null)->values(), $feedTypes);
     }
 
-    protected static function nestGroups($groups): array
+    /**
+     * Recursively nest groups into tree structure.
+     * @param $groups Collection of groups to nest
+     * @param array $feedTypes Feed types with translated names (keyed by ID)
+     */
+    protected static function nestGroups($groups, array $feedTypes = []): array
     {
         $result = [];
 
@@ -116,11 +126,14 @@ class ClientCustomPropertyTypeGroup extends Model
                 'children' => [],
             ];
 
-            // Add mapped property types
+            // Add mapped property types - use translated name from feedTypes if available
             foreach ($group->mappings as $mapping) {
+                $typeId = (string) $mapping->feed_type_id;
+                $translatedName = $feedTypes[$typeId] ?? $mapping->feed_type_name;
+
                 $item['children'][] = [
                     'id' => $mapping->feed_type_id,
-                    'name' => $mapping->feed_type_name,
+                    'name' => $translatedName,
                     'type' => 'property_type',
                     'is_custom' => false,
                 ];
@@ -128,7 +141,7 @@ class ClientCustomPropertyTypeGroup extends Model
 
             // Add nested child groups
             if ($group->children->isNotEmpty()) {
-                $nestedChildren = static::nestGroups($group->children);
+                $nestedChildren = static::nestGroups($group->children, $feedTypes);
                 $item['children'] = array_merge($item['children'], $nestedChildren);
             }
 

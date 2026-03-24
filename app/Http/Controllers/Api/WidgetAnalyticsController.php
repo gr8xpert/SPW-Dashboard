@@ -20,7 +20,7 @@ class WidgetAnalyticsController extends Controller
         $request->validate([
             'domain' => 'required|string',
             'events' => 'required|array|min:1|max:100',
-            'events.*.type'       => 'required|string|in:search,property_view,card_click,wishlist_add,inquiry,share',
+            'events.*.type'       => 'required|string|in:search,property_view,card_click,wishlist_add,inquiry,share,pdf_download',
             'events.*.data'       => 'nullable|array',
             'events.*.session_id' => 'nullable|string|max:64',
             'events.*.url'        => 'nullable|string|max:500',

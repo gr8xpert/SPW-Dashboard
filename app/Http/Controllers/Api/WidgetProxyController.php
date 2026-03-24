@@ -27,13 +27,14 @@ class WidgetProxyController extends Controller
 
     /**
      * Proxy locations with display preferences applied.
-     * GET /api/v1/widget/locations?domain={domain}
+     * GET /api/v1/widget/locations?domain={domain}&lang={lang}
      */
     public function locations(Request $request): JsonResponse
     {
         $request->validate(['domain' => 'required|string']);
 
         $domain = $request->input('domain');
+        $lang = $request->input('lang', 'en_US');
         $client = $this->subscriptionService->findClientByDomain($domain);
 
         if (!$client) {
@@ -46,7 +47,7 @@ class WidgetProxyController extends Controller
 
         // Check for custom location grouping
         if ($client->custom_location_grouping_enabled) {
-            $mergedLocations = $this->locationGroupingService->getMergedLocations($client);
+            $mergedLocations = $this->locationGroupingService->getMergedLocations($client, $lang);
             if (!empty($mergedLocations)) {
                 return response()->json([
                     'data' => $mergedLocations,
@@ -57,18 +58,19 @@ class WidgetProxyController extends Controller
         }
 
         // Fall back to standard flow with display preferences
-        return $this->proxyWithPreferences($request, 'location', ['/v2/location', '/v1/location']);
+        return $this->proxyWithPreferences($request, 'location', ['/v2/location', '/v1/location'], $lang);
     }
 
     /**
      * Proxy property types with display preferences applied.
-     * GET /api/v1/widget/property-types?domain={domain}
+     * GET /api/v1/widget/property-types?domain={domain}&lang={lang}
      */
     public function propertyTypes(Request $request): JsonResponse
     {
         $request->validate(['domain' => 'required|string']);
 
         $domain = $request->input('domain');
+        $lang = $request->input('lang', 'en_US');
         $client = $this->subscriptionService->findClientByDomain($domain);
 
         if (!$client) {
@@ -81,7 +83,7 @@ class WidgetProxyController extends Controller
 
         // Check for custom property type grouping
         if ($client->custom_property_type_grouping_enabled) {
-            $mergedTypes = $this->propertyTypeGroupingService->getMergedPropertyTypes($client);
+            $mergedTypes = $this->propertyTypeGroupingService->getMergedPropertyTypes($client, $lang);
             if (!empty($mergedTypes)) {
                 return response()->json([
                     'data' => $mergedTypes,
@@ -92,18 +94,19 @@ class WidgetProxyController extends Controller
         }
 
         // Fall back to standard flow with display preferences
-        return $this->proxyWithPreferences($request, 'property_type', ['/v1/property_types']);
+        return $this->proxyWithPreferences($request, 'property_type', ['/v1/property_types'], $lang);
     }
 
     /**
      * Proxy features with display preferences applied.
-     * GET /api/v1/widget/features?domain={domain}
+     * GET /api/v1/widget/features?domain={domain}&lang={lang}
      */
     public function features(Request $request): JsonResponse
     {
         $request->validate(['domain' => 'required|string']);
 
         $domain = $request->input('domain');
+        $lang = $request->input('lang', 'en_US');
         $client = $this->subscriptionService->findClientByDomain($domain);
 
         if (!$client) {
@@ -116,7 +119,7 @@ class WidgetProxyController extends Controller
 
         // Check for custom feature grouping
         if ($client->custom_feature_grouping_enabled) {
-            $mergedFeatures = $this->featureGroupingService->getMergedFeatures($client);
+            $mergedFeatures = $this->featureGroupingService->getMergedFeatures($client, $lang);
             if (!empty($mergedFeatures)) {
                 return response()->json([
                     'data' => $mergedFeatures,
@@ -127,13 +130,13 @@ class WidgetProxyController extends Controller
         }
 
         // Fall back to standard flow with display preferences
-        return $this->proxyWithPreferences($request, 'feature', ['/v1/property_features']);
+        return $this->proxyWithPreferences($request, 'feature', ['/v1/property_features'], $lang);
     }
 
     /**
      * Fetch data from API and apply display preferences.
      */
-    protected function proxyWithPreferences(Request $request, string $type, array $endpoints): JsonResponse
+    protected function proxyWithPreferences(Request $request, string $type, array $endpoints, string $lang = 'en_US'): JsonResponse
     {
         $request->validate(['domain' => 'required|string']);
 
@@ -148,8 +151,8 @@ class WidgetProxyController extends Controller
             return response()->json(['error' => 'Access denied'], 403);
         }
 
-        // Fetch data from the appropriate API
-        $data = $this->fetchFromApi($client, $endpoints);
+        // Fetch data from the appropriate API with language
+        $data = $this->fetchFromApi($client, $endpoints, $lang);
 
         if ($data === null) {
             return response()->json(['error' => 'Failed to fetch data from API'], 502);
@@ -169,21 +172,26 @@ class WidgetProxyController extends Controller
 
     /**
      * Fetch data from the client's API (Resales or CRM).
+     * @param Client $client The client to fetch data for
+     * @param array $endpoints The API endpoints to try
+     * @param string $lang The language code for translations (e.g., 'it_IT', 'es_ES')
      */
-    protected function fetchFromApi(Client $client, array $endpoints): ?array
+    protected function fetchFromApi(Client $client, array $endpoints, string $lang = 'en_US'): ?array
     {
         $apiUrl = null;
         $headers = ['Accept' => 'application/json'];
         $queryParam = '';
 
         if ($client->resales_client_id && $client->resales_api_key) {
-            // Resales clients: use spw-transform
+            // Resales clients: use spw-transform with language
             $apiUrl = 'https://api.smartpropertywidget.com';
-            $queryParam = '?_domain=' . urlencode($client->domain);
+            $queryParam = '?_domain=' . urlencode($client->domain) . '&_lang=' . urlencode($lang);
         } elseif ($client->api_url && $client->api_key) {
-            // CRM/Odoo clients: use their configured API
+            // CRM/Odoo clients: use their configured API with language
             $apiUrl = rtrim($client->api_url, '/');
             $headers['access_token'] = $client->api_key;
+            // CRM uses 'ln' parameter for language (not 'lang')
+            $queryParam = '?ln=' . urlencode($lang);
         } else {
             Log::warning("No API configured for client {$client->domain}");
             return null;
@@ -373,11 +381,44 @@ class WidgetProxyController extends Controller
         $response = [
             'labels' => $labels,
             'enabledListingTypes' => $enabledListingTypes,
+            'owner_email' => $client->owner_email,
+            // Location hierarchy configuration
+            'location_parent_type' => $client->location_parent_type ?? 'municipality',
+            'location_child_types' => array_filter(explode(',', $client->location_child_type ?? 'city')),
         ];
 
         // Only include priceRanges if configured
         if ($priceRanges && is_array($priceRanges)) {
             $response['priceRanges'] = $priceRanges;
+        }
+
+        // Include feature toggles
+        $response['features'] = [
+            'enableAiSearch' => $client->ai_search_enabled ?? false,
+            'enableMapView' => $widgetConfig['enableMapView'] ?? true,
+            'enableCurrencyConverter' => $widgetConfig['enableCurrencyConverter'] ?? true,
+            'enableWishlist' => $widgetConfig['enableWishlist'] ?? true,
+        ];
+
+        // Include currency settings (always send with defaults)
+        $response['baseCurrency'] = $widgetConfig['baseCurrency'] ?? 'EUR';
+        $response['availableCurrencies'] = $widgetConfig['availableCurrencies'] ?? ['EUR', 'GBP', 'USD'];
+
+        // Include display settings (always send with defaults)
+        $response['defaultView'] = $widgetConfig['defaultView'] ?? 'grid';
+        $response['perPage'] = $widgetConfig['perPage'] ?? 24;
+
+        // Include customization options
+        if (!empty($widgetConfig['wishlistIcon']) && $widgetConfig['wishlistIcon'] !== 'heart') {
+            $response['wishlistIcon'] = $widgetConfig['wishlistIcon'];
+        }
+        if (!empty($widgetConfig['recaptchaSiteKey'])) {
+            $response['recaptchaSiteKey'] = $widgetConfig['recaptchaSiteKey'];
+        }
+
+        // Include branding if set
+        if (!empty($widgetConfig['branding'])) {
+            $response['branding'] = $widgetConfig['branding'];
         }
 
         return response()->json($response);

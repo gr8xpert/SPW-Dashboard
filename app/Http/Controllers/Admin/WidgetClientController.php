@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Client;
+use App\Models\ClientCustomFeatureGroup;
 use App\Models\ClientCustomLocationGroup;
+use App\Models\ClientCustomPropertyTypeGroup;
 use App\Models\ClientDisplayPreference;
 use App\Models\LicenseKey;
 use App\Models\Plan;
@@ -78,6 +80,10 @@ class WidgetClientController extends Controller
             'resales_settings.*.filter_id'  => 'nullable|string|max:10',
             'resales_settings.*.own_filter' => 'nullable|string|max:10',
             'resales_settings.*.min_price'  => 'nullable|integer|min:0',
+            // Location hierarchy types
+            'location_parent_type' => 'nullable|string|in:area,municipality,province,region,country',
+            'location_child_types' => 'nullable|array',
+            'location_child_types.*' => 'string|in:city,town,municipality,area,urbanization',
             // Widget config fields
             'wc_baseCurrency'          => 'nullable|string|max:5',
             'wc_availableCurrencies'   => 'nullable|array',
@@ -110,6 +116,7 @@ class WidgetClientController extends Controller
             'enableCurrencyConverter' => $request->boolean('wc_enableCurrencyConverter'),
             'baseCurrency'           => $request->input('wc_baseCurrency', 'EUR'),
             'availableCurrencies'    => $request->input('wc_availableCurrencies', ['EUR']),
+            'wishlistIcon'           => $request->input('wc_wishlistIcon', 'heart'),
             'branding' => array_filter([
                 'companyName'      => $request->input('wc_companyName', ''),
                 'logoUrl'          => $request->input('wc_logoUrl', ''),
@@ -119,13 +126,24 @@ class WidgetClientController extends Controller
             ]),
         ];
 
+        // Handle reCAPTCHA keys - only save if filled, remove if explicitly cleared
+        $siteKey = trim($request->input('wc_recaptchaSiteKey', ''));
+        $secretKey = trim($request->input('wc_recaptchaSecretKey', ''));
+
+        if (!empty($siteKey)) {
+            $widgetConfig['recaptchaSiteKey'] = $siteKey;
+        }
+        if (!empty($secretKey)) {
+            $widgetConfig['recaptchaSecretKey'] = $secretKey;
+        }
+
         // Merge extra JSON overrides if provided
         if ($request->filled('wc_extraJson')) {
             $extra = json_decode($request->input('wc_extraJson'), true);
             if (is_array($extra)) {
                 $widgetConfig['_extra'] = $extra;
                 // Merge extra keys into top level (except reserved keys)
-                $reserved = ['enableMapView', 'enableAISearch', 'enableCurrencyConverter', 'baseCurrency', 'availableCurrencies', 'branding', '_extra', 'priceRanges'];
+                $reserved = ['enableMapView', 'enableAISearch', 'enableCurrencyConverter', 'baseCurrency', 'availableCurrencies', 'wishlistIcon', 'recaptchaSiteKey', 'recaptchaSecretKey', 'branding', '_extra', 'priceRanges'];
                 foreach ($extra as $k => $v) {
                     if (!in_array($k, $reserved)) {
                         $widgetConfig[$k] = $v;
@@ -197,6 +215,8 @@ class WidgetClientController extends Controller
                 'subscription_expires_at',
                 // Resales Online credentials
                 'resales_client_id', 'resales_api_key', 'resales_filter_id', 'resales_agency_code',
+                // Location hierarchy types
+                'location_parent_type',
             ]),
             [
                 'grace_ends_at'     => $graceEndsAt,
@@ -207,6 +227,8 @@ class WidgetClientController extends Controller
                 'widget_enabled'    => $request->boolean('widget_enabled'),
                 'admin_override'    => $request->boolean('admin_override'),
                 'is_internal'       => $request->boolean('is_internal'),
+                // Location child types: convert array to comma-separated string
+                'location_child_type' => implode(',', $request->input('location_child_types', ['city'])),
             ]
         ));
 
@@ -503,36 +525,8 @@ class WidgetClientController extends Controller
         // Fetch available items from the microservice
         $items = $this->fetchItemsFromMicroservice($client, $type);
 
-        // For locations, include custom groups if feature is enabled
-        $customGroups = collect();
-        if ($type === 'location' && $client->custom_location_grouping_enabled) {
-            $customGroups = ClientCustomLocationGroup::where('client_id', $client->id)
-                ->whereNull('parent_group_id')
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->get()
-                ->map(function ($group) use ($preferences) {
-                    $itemId = 'custom_group_' . $group->id;
-                    $pref = $preferences->get($itemId);
-
-                    // If group has parent_feed_location_id, nest it under that location
-                    $parentId = $group->parent_feed_location_id ?: false;
-
-                    return [
-                        'id'           => $itemId,
-                        'name'         => $group->name,
-                        'parent_id'    => $parentId,
-                        'type'         => 'custom_group',
-                        'is_custom'    => true,
-                        'visible'      => $pref ? $pref->visible : true,
-                        'sort_order'   => $pref ? $pref->sort_order : -1, // Default to top within parent
-                        'custom_name'  => $pref ? $pref->custom_name : null,
-                        'has_pref'     => (bool) $pref,
-                        'mapped_count' => $group->mappings()->count(),
-                        'parent_feed_location_name' => $group->parent_feed_location_name,
-                    ];
-                });
-        }
+        // Include custom groups based on type if feature is enabled
+        $customGroups = $this->getCustomGroupsForType($client, $type, $preferences);
 
         // Merge preferences with items
         $mergedItems = collect($items)->map(function ($item, $index) use ($preferences) {
@@ -646,8 +640,38 @@ class WidgetClientController extends Controller
         $itemId = $request->input('item_id');
         $direction = $request->input('direction');
 
-        // Fetch all items to understand the hierarchy
-        $items = collect($this->fetchItemsFromMicroservice($client, $type));
+        // Fetch all items from API
+        $apiItems = collect($this->fetchItemsFromMicroservice($client, $type));
+
+        // Get existing preferences to build custom groups properly
+        $preferences = ClientDisplayPreference::where('client_id', $client->id)
+            ->where('item_type', $type)
+            ->get()
+            ->keyBy('item_id');
+
+        // Get custom groups for this type
+        $customGroups = $this->getCustomGroupsForType($client, $type, $preferences);
+
+        // Merge API items with custom groups
+        $items = $apiItems->map(function ($item) {
+            return [
+                'id'        => (string) $item['id'],
+                'name'      => $item['name'],
+                'parent_id' => $item['parent_id'] ?? false,
+            ];
+        });
+
+        if ($customGroups->isNotEmpty()) {
+            $items = $customGroups->map(function ($group) {
+                return [
+                    'id'        => $group['id'],
+                    'name'      => $group['name'],
+                    'parent_id' => $group['parent_id'],
+                ];
+            })->concat($items);
+        }
+
+        // Find the current item (could be API item or custom group)
         $currentItem = $items->firstWhere('id', $itemId);
 
         if (!$currentItem) {
@@ -656,16 +680,16 @@ class WidgetClientController extends Controller
 
         // Get siblings (items with same parent_id)
         $parentId = $currentItem['parent_id'] ?? false;
-        $siblings = $items->filter(fn($item) => ($item['parent_id'] ?? false) === $parentId)->values();
+        $siblings = $items->filter(function ($item) use ($parentId) {
+            $itemParent = $item['parent_id'] ?? false;
+            // Handle both false and string comparison
+            if ($parentId === false) {
+                return $itemParent === false || $itemParent === '' || $itemParent === null;
+            }
+            return (string) $itemParent === (string) $parentId;
+        })->values();
 
-        // Get current preferences for these siblings
-        $preferences = ClientDisplayPreference::where('client_id', $client->id)
-            ->where('item_type', $type)
-            ->whereIn('item_id', $siblings->pluck('id'))
-            ->get()
-            ->keyBy('item_id');
-
-        // Build sorted list with sort_order
+        // Build sorted list with sort_order from preferences
         $sortedSiblings = $siblings->map(function ($item, $index) use ($preferences) {
             $pref = $preferences->get((string) $item['id']);
             return [
@@ -722,6 +746,93 @@ class WidgetClientController extends Controller
     }
 
     /**
+     * Get custom groups for a specific type (location, property_type, feature).
+     */
+    protected function getCustomGroupsForType(Client $client, string $type, $preferences): \Illuminate\Support\Collection
+    {
+        $customGroups = collect();
+
+        if ($type === 'location' && $client->custom_location_grouping_enabled) {
+            $customGroups = ClientCustomLocationGroup::where('client_id', $client->id)
+                ->whereNull('parent_group_id')
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(function ($group) use ($preferences) {
+                    $itemId = 'custom_group_' . $group->id;
+                    $pref = $preferences->get($itemId);
+                    $parentId = $group->parent_feed_location_id ?: false;
+
+                    return [
+                        'id'           => $itemId,
+                        'name'         => $group->name,
+                        'parent_id'    => $parentId,
+                        'type'         => 'custom_group',
+                        'is_custom'    => true,
+                        'visible'      => $pref ? $pref->visible : true,
+                        'sort_order'   => $pref ? $pref->sort_order : -1,
+                        'custom_name'  => $pref ? $pref->custom_name : null,
+                        'has_pref'     => (bool) $pref,
+                        'mapped_count' => $group->mappings()->count(),
+                        'parent_feed_location_name' => $group->parent_feed_location_name,
+                    ];
+                });
+        } elseif ($type === 'property_type' && $client->custom_property_type_grouping_enabled) {
+            $customGroups = ClientCustomPropertyTypeGroup::where('client_id', $client->id)
+                ->whereNull('parent_group_id')
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(function ($group) use ($preferences) {
+                    $itemId = 'custom_type_group_' . $group->id;
+                    $pref = $preferences->get($itemId);
+                    $parentId = $group->parent_feed_type_id ?: false;
+
+                    return [
+                        'id'           => $itemId,
+                        'name'         => $group->name,
+                        'parent_id'    => $parentId,
+                        'type'         => 'custom_group',
+                        'is_custom'    => true,
+                        'visible'      => $pref ? $pref->visible : true,
+                        'sort_order'   => $pref ? $pref->sort_order : -1,
+                        'custom_name'  => $pref ? $pref->custom_name : null,
+                        'has_pref'     => (bool) $pref,
+                        'mapped_count' => $group->mappings()->count(),
+                        'parent_feed_type_name' => $group->parent_feed_type_name ?? null,
+                    ];
+                });
+        } elseif ($type === 'feature' && $client->custom_feature_grouping_enabled) {
+            $customGroups = ClientCustomFeatureGroup::where('client_id', $client->id)
+                ->whereNull('parent_group_id')
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->map(function ($group) use ($preferences) {
+                    $itemId = 'custom_feature_group_' . $group->id;
+                    $pref = $preferences->get($itemId);
+                    $parentId = $group->parent_feed_feature_id ?: false;
+
+                    return [
+                        'id'           => $itemId,
+                        'name'         => $group->name,
+                        'parent_id'    => $parentId,
+                        'type'         => 'custom_group',
+                        'is_custom'    => true,
+                        'visible'      => $pref ? $pref->visible : true,
+                        'sort_order'   => $pref ? $pref->sort_order : -1,
+                        'custom_name'  => $pref ? $pref->custom_name : null,
+                        'has_pref'     => (bool) $pref,
+                        'mapped_count' => $group->mappings()->count(),
+                        'parent_feed_feature_name' => $group->parent_feed_feature_name ?? null,
+                    ];
+                });
+        }
+
+        return $customGroups;
+    }
+
+    /**
      * Fetch items (locations, types, or features) from the appropriate API.
      * Supports: Resales (spw-transform), CRM (direct), and Odoo (inmotechplugin).
      */
@@ -770,7 +881,8 @@ class WidgetClientController extends Controller
                 \Log::info("Fetching {$type} for {$client->domain}: {$url}");
 
                 $response = Http::withoutVerifying()
-                    ->timeout(15)
+                    ->connectTimeout(10)
+                    ->timeout(60)
                     ->withHeaders($headers)
                     ->get($url);
 

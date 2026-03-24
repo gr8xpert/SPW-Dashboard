@@ -88,7 +88,12 @@ class ClientCustomFeatureGroup extends Model
 
     // --- Tree Building ---
 
-    public static function buildTree(int $clientId): array
+    /**
+     * Build tree structure for custom feature groups.
+     * @param int $clientId The client ID
+     * @param array $feedFeatures Optional array of feed features with translated names (keyed by ID)
+     */
+    public static function buildTree(int $clientId, array $feedFeatures = []): array
     {
         $groups = static::where('client_id', $clientId)
             ->where('is_active', true)
@@ -98,10 +103,15 @@ class ClientCustomFeatureGroup extends Model
             }])
             ->get();
 
-        return static::nestGroups($groups->where('parent_group_id', null)->values());
+        return static::nestGroups($groups->where('parent_group_id', null)->values(), $feedFeatures);
     }
 
-    protected static function nestGroups($groups): array
+    /**
+     * Recursively nest groups into tree structure.
+     * @param $groups Collection of groups to nest
+     * @param array $feedFeatures Feed features with translated names (keyed by ID)
+     */
+    protected static function nestGroups($groups, array $feedFeatures = []): array
     {
         $result = [];
 
@@ -116,11 +126,14 @@ class ClientCustomFeatureGroup extends Model
                 'children' => [],
             ];
 
-            // Add mapped features
+            // Add mapped features - use translated name from feedFeatures if available
             foreach ($group->mappings as $mapping) {
+                $featureId = (string) $mapping->feed_feature_id;
+                $translatedName = $feedFeatures[$featureId] ?? $mapping->feed_feature_name;
+
                 $item['children'][] = [
                     'id' => $mapping->feed_feature_id,
-                    'name' => $mapping->feed_feature_name,
+                    'name' => $translatedName,
                     'type' => 'feature',
                     'is_custom' => false,
                 ];
@@ -128,7 +141,7 @@ class ClientCustomFeatureGroup extends Model
 
             // Add nested child groups
             if ($group->children->isNotEmpty()) {
-                $nestedChildren = static::nestGroups($group->children);
+                $nestedChildren = static::nestGroups($group->children, $feedFeatures);
                 $item['children'] = array_merge($item['children'], $nestedChildren);
             }
 

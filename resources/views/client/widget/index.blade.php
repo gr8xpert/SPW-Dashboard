@@ -9,11 +9,8 @@
         <p class="text-muted mb-0">Overview of your property search widget subscription and configuration</p>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ route('dashboard.widget.config') }}" class="btn btn-outline-primary">
+        <a href="{{ route('dashboard.widget.config') }}" class="btn btn-primary">
             <i class="bi bi-sliders me-1"></i> Configure Widget
-        </a>
-        <a href="{{ route('dashboard.widget.setup') }}" class="btn btn-primary">
-            <i class="bi bi-gear-wide-connected me-1"></i> Setup Widget
         </a>
     </div>
 </div>
@@ -31,18 +28,19 @@
                         <i class="bi bi-gem fs-3 text-primary"></i>
                     </div>
                     <div>
-                        <div class="fw-bold fs-4">{{ $subscription->plan->name ?? 'No Plan' }}</div>
+                        <div class="fw-bold fs-4">{{ $client->plan->name ?? 'No Plan' }}</div>
                         @php
                             $statusColors = [
                                 'active'    => 'success',
                                 'trialing'  => 'info',
+                                'grace'     => 'warning',
                                 'expired'   => 'danger',
                                 'cancelled' => 'secondary',
                             ];
-                            $statusColor = $statusColors[$subscription->status ?? 'expired'] ?? 'secondary';
+                            $statusColor = $statusColors[$client->subscription_status ?? 'expired'] ?? 'secondary';
                         @endphp
                         <span class="badge bg-{{ $statusColor }} bg-opacity-10 text-{{ $statusColor }} border border-{{ $statusColor }} border-opacity-25">
-                            {{ ucfirst($subscription->status ?? 'Inactive') }}
+                            {{ ucfirst($client->subscription_status ?? 'Inactive') }}
                         </span>
                     </div>
                 </div>
@@ -51,14 +49,14 @@
                 <div class="text-muted small mb-1">Registered Domain</div>
                 <div class="fw-semibold">
                     <i class="bi bi-globe me-1 text-primary"></i>
-                    {{ $subscription->domain ?? 'Not configured' }}
+                    {{ $client->domain ?? 'Not configured' }}
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="text-muted small mb-1">Renewal Date</div>
                 <div class="fw-semibold">
                     <i class="bi bi-calendar-event me-1 text-primary"></i>
-                    {{ isset($subscription->expires_at) ? $subscription->expires_at->format('M d, Y') : 'N/A' }}
+                    {{ $client->subscription_expires_at ? $client->subscription_expires_at->format('M d, Y') : 'N/A' }}
                 </div>
             </div>
         </div>
@@ -125,7 +123,7 @@
                 </ul>
 
                 <div class="mt-3">
-                    <a href="{{ route('dashboard.widget.analytics') }}" class="btn btn-outline-primary btn-sm w-100">
+                    <a href="{{ route('dashboard.home') }}" class="btn btn-outline-primary btn-sm w-100">
                         <i class="bi bi-graph-up me-1"></i> View Full Analytics
                     </a>
                 </div>
